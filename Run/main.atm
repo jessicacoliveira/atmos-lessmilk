@@ -1,0 +1,208 @@
+require "atmos.env.pico"
+val pico = require "pico"
+
+val WIN_W, WIN_H = (350, 350)
+pico.zet.window @{ title = "Run (Atmos)" }
+pico.zet.dim @{	'!', w = WIN_W, h = WIN_H }
+
+pico.zet.effect @{ color = @{ r = 52, g = 73, b = 94 } }
+pico.zet.pencil @{ color="white", font="media/Arial.ttf" }
+
+math.randomseed()
+
+func check_lim (min, max, num){
+	ifs{
+		num > max => max
+		num < min => min
+		else	=> num
+	}
+}
+
+val robot_layer = pico.layer.images( '!', nil, :rbt, "media/player.png", @{ '#', w = 2, h = 4 } )
+func Robot (){
+	val robot_rect = @{ '%', x = 0.5, y = 0.5, w = 0.057, h = 0.068 }
+	var frame = 3
+	
+	set pub = @{
+		rect = robot_rect
+	}
+	
+	par_or{
+		await :dead
+	} with {
+		val speed = 0.85
+		loop{
+			val evt = await (:key.dn, \e{ (e.key == :Left) || (e.key == :Right) || (e.key == :Up) || (e.key == :Down) })
+			val k = evt.key
+			watching :key.up, k {
+				every _,ms in :clock {
+					val ds = (speed * ms) / 1000.0
+			    		match k {
+						:Left  => set robot_rect.x = check_lim ((robot_rect.w/2), 1 - (robot_rect.w/2), robot_rect.x - ds)
+						:Right => set robot_rect.x = check_lim ((robot_rect.w/2), 1 - (robot_rect.w/2), robot_rect.x + ds)	
+						:Up    => set robot_rect.y = check_lim ((robot_rect.h/2), 1 - (robot_rect.h/2), robot_rect.y - ds)
+						:Down  => set robot_rect.y = check_lim ((robot_rect.h/2), 1 - (robot_rect.h/2), robot_rect.y + ds)
+					}
+				}
+			}
+		}
+	} with {
+		val total_frames_x = 2
+		val row_label = @{ Left = 4, Right = 2, Up = 3, Down = 1 }
+		var col_idx = 1
+		loop{
+			val evt = await (:key.dn, \e{ (e.key == :Left) || (e.key == :Right) || (e.key == :Up) || (e.key == :Down) })
+			val k = evt.key
+			
+			set col_idx = (col_idx % total_frames_x) + 1
+			val row_idx = row_label[k]
+			
+			set frame = col_idx + ((row_idx - 1) * total_frames_x)
+			
+		}
+	} with {
+		every :draw {
+			pico.output.draw.layer(robot_layer[frame], robot_rect)
+		}
+	}
+}
+
+val enemies_layers = @{ pico.layer.images( '!', nil, :ene1, "media/enemy1.png", @{ '#', w = 2, h = 1 } ),
+						pico.layer.images( '!', nil, :ene2, "media/enemy2.png", @{ '#', w = 2, h = 1 } ) }
+func Enemy (x0, y0, xf, yf, kind){
+	val enemy_rect = @{ '%', x= x0 , y= y0, w = we, h = 0.1 } where {
+		we = if kind == :enemy1 => 0.09	=> 0.08	
+	}
+	
+	val sprites = if kind == :enemy1 => enemies_layers[1] => enemies_layers[2]
+	
+	val enemy_travel = 3.0 ;; tween 3000ms do JS
+	val vx = (xf - x0) / enemy_travel
+	val vy = (yf - y0) / enemy_travel
+	val angle = math.atan(vy,vx)
+	var frame = 1
+	
+	set pub = @{
+		rect = enemy_rect
+	}
+
+	watching out_of_screen {
+		par {
+			every _, ms in :clock {
+				val dt = ms / 1000.0
+				set enemy_rect.x = enemy_rect.x + (vx * dt)
+				set enemy_rect.y = enemy_rect.y + (vy * dt)
+			}
+		} with {
+			val total_frames = 2
+			every @.200{ ;; 5fps 
+				set frame = (frame % total_frames) + 1
+			}
+		} with {
+			;; offset so the sprite points along the movement angle
+			val angle_gap = angle - (math.pi/2)
+			
+			every :draw { 
+				pico.zet.layer(sprites[frame])
+				pico.zet.effect @{ rotate = @{ angle = math.deg(angle_gap), anchor = 'C' } }
+				pico.zet.layer(:world)
+				pico.output.draw.layer(sprites[frame], enemy_rect)
+			}
+		}
+	} where {
+		out_of_screen = func (){
+			ifs {
+				((enemy_rect.x - (enemy_rect.w/2)) > 1) => true
+				((enemy_rect.x + (enemy_rect.w/2)) < 0) => true
+				((enemy_rect.y - (enemy_rect.h/2)) > 1) => true
+				((enemy_rect.y + (enemy_rect.h/2)) < 0) => true
+				else => false
+			}
+		}
+	}
+}
+
+func End(score){
+	par_or{		
+		every :draw {
+			pico.output.draw.text("Game Over", @{ '%', x=0.5, y=0.2, h=0.085 })
+			pico.output.draw.text(("Score: " ++ score), @{ '%', x=0.5, y=0.4, h=0.085 })
+			pico.output.draw.text("press the UP arrow key", @{ '%', x=0.5, y=0.6, h=0.085 })
+			pico.output.draw.text("to restart", @{ '%', x=0.5, y=0.7, h=0.085 })
+		}	
+	} with {
+		await (:key.dn, :Up)
+	}
+}
+
+func Play(){
+	pin enemies = tasks(30)
+	pin player = spawn Robot ()
+	var score = 0
+	
+	spawn{	
+		var alpha = 255
+		pico.layer.text( nil, :label_txt, 25, "use the arrow keys to move")
+		par_or{
+			val txt_pos = @{ '%', x=0.5, y=0.6, h=0.065 }
+				every :draw {
+					pico.zet.layer(:label_txt)
+					pico.zet.effect @{ alpha = alpha }
+					pico.zet.layer(:world)
+					pico.output.draw.layer(:label_txt, txt_pos)
+				}
+		} with {
+			await (:key.dn, :Up)
+			val time_fade, alpha_0, alpha_f = (800, 255, 0)
+			watching @.time_fade{
+				var t = 0
+				every _, ms in :clock {
+					set t = t + ms
+					;; inicio + (fim - inicio)*ease(t) (caso geral)
+					set alpha = alpha_0 + (((alpha_f - alpha_0)*t)//time_fade)
+				}
+			}
+			set alpha = alpha_f
+		}
+	}
+	
+	par_or {
+		every @1{
+			set score = score + 1
+		}
+	} with {
+		val txt_pos = @{ '%', x=0.2, y=0.1, h=0.075 }
+		every :draw {
+			pico.output.draw.text ( "score:" ++ score, txt_pos )
+		}
+	} with {
+		every @.500 {
+			val spawn_side = math.random(1, 4)
+			val x0, y0, xf, yf = match spawn_side {
+				1 => (0, math.random(), 1, math.random())	;; left -> right
+				2 => (1, math.random(), 0, math.random())	;; righ -> left
+				3 => (math.random(), 0, math.random(), 1)	;; up -> down
+				4 => (math.random(), 1, math.random(), 0)	;; down -> up
+			}			
+			val kind = if math.random(1,2) == 1 => :enemy1 => :enemy2
+			spawn [enemies] Enemy( x0, y0, xf, yf, kind)
+		}
+	} with {
+		every :clock {
+			loop _, e in enemies {
+				if pico.vs.rect.rect(player.pub.rect, e.pub.rect) => emit [player] :dead
+			}
+		}
+	} with {
+		await (player)
+		pico.output.sound "media/hit.wav"
+	}	
+	score
+}
+		
+loop{
+	pico.push()
+	val score = await Play()
+	await End(score)
+	pico.pop()
+}
