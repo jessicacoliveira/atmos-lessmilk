@@ -1,0 +1,377 @@
+require "atmos.env.pico"
+val pico = require "pico"
+
+val win_w, win_h = (300,500)
+pico.zet.window @{ title = "Pixel War (Atmos)" }
+pico.zet.dim @{ '!', w = win_w, h = win_h }
+
+pico.zet.effect @{ color = @{ r =  41, g = 128, b = 185 } }
+pico.zet.pencil @{ color = "white", font="media/Arial.ttf" }
+
+math.randomseed()
+
+func check_lim (min, max, num){
+	ifs{
+		num > max 	=> max
+		num < min 	=> min
+		else 		=> num
+	}
+}
+
+func Intro (){
+	par_or {
+		val p = @{ '%', x = 0.5, y = 0.5 }
+		every :draw{
+			pico.output.draw.image("media/bg.png", p)
+		}
+	} with {
+		await (:key.dn, :Up)
+	}
+}
+
+func Over (score){
+	par_or{
+		val txt_GG = @{ '%', x=0.5, y=0.3, h=0.06 }
+		val txt_score = @{ '%', x=0.5, y=0.45, h=0.06 }
+		val txt_restart = @{ '%', x=0.5, y=0.6, h=0.06 }
+		val txt_restart2 = @{ '%', x=0.5, y=0.7, h=0.06 }
+
+		every :draw{
+			pico.output.draw.text("game over", txt_GG)
+			pico.output.draw.text(("score: " ++ score), txt_score)
+			pico.output.draw.text("press the UP arrow", txt_restart)
+			pico.output.draw.text("key to restart", txt_restart2)	
+		}
+	} with {
+		await(:key.dn, :Up)
+	}
+}
+
+func KickAnimation (ship, ds_kick, total_time){
+	val p_push, p_pull  = (ship.y + ds_kick, ship.y)
+	val time = total_time/2
+	val v = ds_kick/time
+
+	watching @.time{
+		every _, ms in :clock{
+			set ship.y = ship.y + (v * ms)
+		}
+	}
+	set ship.y = p_push
+
+	watching @.time{
+		every _, ms in :clock{
+			set ship.y = ship.y - (v * ms)
+		}
+	}
+	set ship.y = p_pull
+}
+
+func HitAnimation (x0, y0, lifespan, quantity, frequency){
+	val launch_time = frequency || 250 
+	pin party = tasks(quantity)
+
+	loop i in quantity {
+		val ang   = math.random() * (2*math.pi)
+		val speed = 0.1 + (math.random() * 0.25)
+		val vx, vy = ((speed * math.cos(ang)), (speed * math.sin(ang)))
+		spawn [party] Particle(x0, y0, vx, vy, 0, lifespan)
+	}
+	await \{ #party == 0 }
+}
+
+pico.layer.image('!', nil, "pixel", "media/pixel.png")
+func Particle (x0, y0, vx0, vy0, gravity, lifespan){
+	val rect = @{ '%', x = x0, y = y0, w = 0.023, h = 0.016 }
+	var vx, vy = (vx0, vy0)
+	var angle_update = 0 
+
+	watching \{ (rect.x < 0) || (rect.x > 1) || (rect.y < 0) || (rect.y > 1) } {
+		par_or {
+			every _, ms in :clock {
+				val dt = ms / 1000.0
+				set vy = vy + (gravity * dt)
+				set rect.x = rect.x + (vx * dt)
+				set rect.y = rect.y + (vy * dt)
+			}
+		} with {
+			every :clock{
+			set angle_update = math.atan(vy, vx)
+			}
+		} with {
+			every :draw {
+				pico.zet.layer("pixel")
+				pico.zet.effect @{ rotate=@{ angle=math.deg(angle_update), anchor='C' } }
+				pico.zet.layer(:world)
+				pico.output.draw.layer("pixel", rect)
+			}
+		} with {
+			await @.lifespan
+		}
+	}
+}
+
+func Player (x0, y0){
+	val rect_player = @{ '%', x = x0, y = y0, w = 0.15, h = 0.095 }
+	pin shots = tasks(25)
+	val status = @{ evolution = 1, lives =  3 }
+
+	set pub = @{
+		rect = rect_player,
+		lives = status.lives,
+		shots = shots
+	}
+	
+	val time_kick, p_ori = (100, rect_player.y)
+	par_or {
+		loop{
+			val evt = await (:key.dn, \e{ (e.key == :Left) || (e.key == :Right) })
+			val k = evt.key
+			watching :key.up, k {
+				val speed = 1
+				every _,ms in :clock {
+					val ds = (speed * ms) / 1000.0
+					match k {
+						:Left	=> set rect_player.x = check_lim ((rect_player.w/2), 1 - (rect_player.w/2), rect_player.x - ds)
+						:Right	=> set rect_player.x = check_lim ((rect_player.w/2), 1 - (rect_player.w/2), rect_player.x + ds)
+					}
+				}
+			}
+		}
+	} with {
+		loop{
+			await (:key.dn, :Up)
+			watching :key.up, :Up {
+				match status.evolution{
+					1 => spawn [shots] Shot(rect_player.x, rect_player.y - (rect_player.h/2))
+					2 =>{
+						spawn [shots] Shot(rect_player.x - (rect_player.w/4), rect_player.y - (rect_player.h/2))
+						spawn [shots] Shot(rect_player.x + (rect_player.w/4), rect_player.y - (rect_player.h/2))
+					}
+					3 =>{
+						spawn [shots] Shot(rect_player.x, rect_player.y - (rect_player.h/2))
+						spawn [shots] Shot(rect_player.x - (rect_player.w/2), rect_player.y - (rect_player.h/2))
+						spawn [shots] Shot(rect_player.x + (rect_player.w/2), rect_player.y - (rect_player.h/2))
+					}
+				}
+			}
+			pico.output.sound "media/fire.wav"
+			await KickAnimation (rect_player, 0.04, 200)
+			await @.100 ;;cooldown
+		}
+	} with{
+		every :bonus{
+			if status.evolution < 3 => set status.evolution = status.evolution + 1 
+		}
+	} with{
+		every :draw{
+			pico.output.draw.image("media/player.png", rect_player)
+		}
+	} with {
+		every :hit{
+			set status.lives = status.lives - 1
+			set pub.lives = status.lives
+			set status.evolution = 1
+			pico.output.sound "media/hit.wav"
+			await KickAnimation (rect_player, 0.04, 100)
+		}
+	} with {
+		await \{ status.lives == 0 }
+	}
+}
+
+pico.layer.image('!', nil, :cbonus, "media/bonus.png")
+func Bonus (){
+	val rect_bonus = @{ '%', x = x0, y = 0, w = wc, h = hc } where {
+		wc =0.08
+		hc = 0.05
+		x0 = (wc/2) + (math.random() * (1 - wc))
+	}
+	
+	set pub = @{
+		rect = rect_bonus
+	}
+	
+	watching \e{ ((rect_bonus.y - (rect_bonus.h/2)) > 1) } {
+		var ang = 0
+		par_or{
+			val speed = 0.3
+			every _, ms in :clock {
+				val ds = (speed * ms) / 1000
+				set rect_bonus.y = rect_bonus.y + ds
+			}
+		} with {
+			every _, ms in :clock {
+				set ang = (ang + ((360 * ms) / 3500)) % 360.0
+			}
+		}with {
+			every :draw{
+				pico.zet.layer(:cbonus)
+				pico.zet.effect @{ rotate = @{ angle= ang, anchor='C' } }
+				pico.zet.layer(:world)
+				pico.output.draw.layer(:cbonus, rect_bonus)
+			}
+		} with {
+			await :hit
+			pico.output.sound("media/bonus.wav")
+		}
+	}
+}
+
+func Shot (x0, y0){
+	val rect_fire = @{ '%', x = x0, y = y0, w = 0.023, h = 0.065 }
+	
+	set pub = @{
+		rect = rect_fire
+	}
+	
+	watching \{ rect_fire.y < (-(rect_fire.h/2)) } {
+		par_or {
+			val speed = 1
+			every _, ms in :clock {
+				val ds = (speed * ms) / 1000
+				set rect_fire.y = rect_fire.y - ds
+			}
+		}with {
+			every :draw{
+				pico.output.draw.image("media/fire.png", rect_fire)
+			}
+		} with {
+			await :hit
+		}
+	}
+}
+
+val bul = pico.layer.images('!', nil, :bul, "media/bullet.png", @{ '#', w=2, h=1 })
+func Bullet (){
+	val rect_bullet = @{ '%', x= x0 , y= 0, w = wb, h = hb } where {
+		wb = 0.045
+		hb = 0.064
+		x0 = (wb/2) + (math.random() * (1 - wb))
+	}
+	
+	set pub = @{
+		rect = rect_bullet
+	}
+
+	var frame = 1
+	watching \{ ((rect_bullet.y - (rect_bullet.h/2))  > 1) } {
+		par_or {
+			val speed = 0.7
+			every _, ms in :clock {
+				val ds = (speed * ms) / 1000.0
+				set rect_bullet.y = rect_bullet.y + ds
+			}
+		} with {
+			val total_frames = 2
+			every @.200 {
+				set frame = (frame % total_frames) + 1
+			}
+		} with {
+			every :draw{
+				pico.output.draw.layer(bul[frame], rect_bullet)
+			}
+		} with {
+			await :hit
+		}
+	}	
+}
+
+func Enemy (){
+	val rect_enemy = @{ '%', x= x0 , y= 0, w = we, h = he } where {
+		we = 0.069
+		he = 0.096
+		x0 = (we/2) + (math.random() * (1 - we))
+	}
+	
+	set pub = @{
+		rect = rect_enemy
+	}
+    
+	watching \e { ((rect_enemy.y - (rect_enemy.h/2))  > 1) } {
+		par_or {
+			val speed = 0.6
+			every _, ms in :clock {
+				val ds = (speed * ms) / 1000.0
+				set rect_enemy.y = rect_enemy.y + ds
+			}
+		} with {
+			every :draw{
+				pico.output.draw.image("media/enemy.png", rect_enemy)
+			}
+		} with {
+			await :hit
+		}
+	}
+}
+
+func Play(){
+	pin player = spawn Player (0.5, 0.86)
+	pin enemies1 = tasks(30)
+	pin enemies2 = tasks(30)
+	pin bonuses = tasks(3)
+	pin boom = tasks()
+	var score, bullet_timer = (0, 1000)
+
+	par_or{
+		val txt_score = @{ '%', x=0.1, y=0.05, h=0.075 }
+		val txt_life = @{ '%', x=0.9, y=0.05, h=0.075 }
+		every :draw {
+			pico.output.draw.text(score, txt_score)
+			pico.output.draw.text(player.pub.lives, txt_life)
+		}
+	} with {
+		every @.250{
+			spawn [enemies1] Enemy()
+		}
+	} with {
+		every @.bullet_timer{
+			spawn [enemies2] Bullet()
+		}
+	} with {
+		every @5{
+			spawn [bonuses] Bonus()
+		}
+	} with {
+		every :clock {
+			loop _, e1 in enemies1 {
+				loop _, shot in player.pub.shots {
+					if pico.vs.rect.rect(e1.pub.rect, shot.pub.rect) {
+						val xe, ye = (e1.pub.rect.x, e1.pub.rect.y)
+						emit [shot]	:hit
+						emit [e1]	:hit
+						spawn [boom] HitAnimation (xe, ye, 300, 10)
+						pico.output.sound "media/exp.wav"
+						set score = score + 10
+						set bullet_timer = (1000 - (score/2))
+					}
+				}
+			}
+			val enemies = @{} ++ enemies1 ++ enemies2
+			loop _, e in enemies{
+				if pico.vs.rect.rect(e.pub.rect, player.pub.rect){
+					emit [e] :hit
+					emit [player] :hit
+				}
+			}
+			loop _, bonus in bonuses {
+				if pico.vs.rect.rect(player.pub.rect, bonus.pub.rect) {
+					emit [bonus] :hit
+					emit [player] :bonus
+					set score = score + 100
+					set bullet_timer = (1000 - (score/2))
+				}
+			}
+		}
+	} with {
+		await (player)
+		pico.output.sound ("media/dead.wav")
+	}
+	score
+}
+
+await Intro()		
+loop{
+	val score = await Play()
+	await Over(score)
+}
