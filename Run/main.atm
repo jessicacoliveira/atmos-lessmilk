@@ -2,11 +2,11 @@ require "atmos.env.pico"
 val pico = require "pico"
 
 val WIN_W, WIN_H = (350, 350)
-pico.zet.window [ title = "Run (Atmos)" ]
-pico.zet.dim [	'!', w = WIN_W, h = WIN_H ]
+pico.set.window [ title = "Run (Atmos)" ]
+pico.set.dim [	'!', w = WIN_W, h = WIN_H ]
 
-pico.zet.effect [ color = [ r = 52, g = 73, b = 94 ] ]
-pico.zet.pencil [ color="white", font="media/Arial.ttf" ]
+pico.set.effect [ color = [ r = 52, g = 73, b = 94 ] ]
+pico.set.pencil [ color="white", font="media/Arial.ttf" ]
 
 math.randomseed()
 
@@ -103,9 +103,9 @@ func Enemy (x0, y0, xf, yf, kind){
 			val angle_gap = angle - (math.pi/2)
 			
 			every :draw { 
-				pico.zet.layer(sprites[frame])
-				pico.zet.effect [ rotate = [ angle = math.deg(angle_gap), anchor = 'C' ] ]
-				pico.zet.layer(:world)
+				pico.set.layer(sprites[frame])
+				pico.set.effect [ rotate = [ angle = math.deg(angle_gap), anchor = 'C' ] ]
+				pico.set.layer(:world)
 				pico.output.draw.layer(sprites[frame], enemy_rect)
 			}
 		}
@@ -146,9 +146,9 @@ func Play(){
 		par:any{
 			val txt_pos = [ '%', x=0.5, y=0.6, h=0.065 ]
 				every :draw {
-					pico.zet.layer(:label_txt)
-					pico.zet.effect [ alpha = alpha ]
-					pico.zet.layer(:world)
+					pico.set.layer(:label_txt)
+					pico.set.effect [ alpha = alpha ]
+					pico.set.layer(:world)
 					pico.output.draw.layer(:label_txt, txt_pos)
 				}
 		} with {
