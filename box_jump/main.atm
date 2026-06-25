@@ -41,7 +41,7 @@ val type_cube = [
     @5 = [ mult = 0.5, ds = -22 ]
 ]
 
-func HitAnimation (x0, y0, lifespan, quantity){
+task HitAnimation (x0, y0, lifespan, quantity){
     pin party = tasks(quantity)
 
     loop i in quantity {
@@ -54,7 +54,7 @@ func HitAnimation (x0, y0, lifespan, quantity){
 }
 
 pico.layer.image('!', nil, "pixel", "media/pixel.png")
-func Particle (x0, y0, vx0, vy0, gravity, lifespan){
+task Particle (x0, y0, vx0, vy0, gravity, lifespan){
     val rect = [ '%', x = x0, y = y0, w = 0.015, h = 0.05 ]
     var vx, vy = (vx0, vy0)
     var angle_update = 0
@@ -85,7 +85,7 @@ func Particle (x0, y0, vx0, vy0, gravity, lifespan){
 }
 
 pico.layer.image('!', nil, "player", cube.source )
-func Player (){
+task Player (){
     val player = [ '%', x = x0, y = y0, w = cube.w, h = cube.h ] where {
         x0 = 0.1
         y0 = FLOOR_Y - (cube.h/2) - 0.15
@@ -156,7 +156,7 @@ func Player (){
     }
 }
 
-func Cube (x0,y0,h_mult){
+task Cube (x0,y0,h_mult){
     val rect_cube = [ '%', x = x0, y = y0, w = cube.w, h = 0.01, anchor = 'S' ]
 
     set pub = [
@@ -180,7 +180,7 @@ func Cube (x0,y0,h_mult){
     }
 }
 
-func Play(){
+task Play(){
     pin player = spawn Player()
     pin boom = task()
 
@@ -251,7 +251,7 @@ func Play(){
     death_count
 }
 
-func End(death_count){
+task End(death_count){
     val txt_GG = [ '%', x=0.5, y=0.3, h=0.175 ]
     val txt_score = [ '%', x=0.5, y=0.5, h=0.125 ]
     val txt_taunt = [ '%', x=0.5, y=0.6, h=0.125 ]
