@@ -1,0 +1,49 @@
+require "atmos.env.pico"
+val pico = require "pico"
+
+pico.zet.window @{ title = "bug 2" }
+pico.zet.dim @{ '!', w = 400, h = 400 }
+
+pico.layer.image( '!', nil, :teste, "enemy1.png" )
+
+val ANGLE = 30
+var dir = 1.0
+val rect = @{ '%', x = 0.5, y = 0.5, w = 0.25, h = 0.25 }
+
+par {
+    every _, ms in :clock {
+        set dt = ms/1000
+        set rect.x = rect.x + (dir * dt * 0.4)
+        if rect.x > 1.0 => set dir = -1.0
+        if rect.x < 0.5  => set dir =  1.0
+    }
+} with {
+    every :draw {
+        pico.zet.layer(:teste)
+        pico.zet.effect @{ rotate = @{ angle = ANGLE, anchor = 'C' } }
+        pico.zet.layer(:world)
+        pico.output.draw.layer(:teste, rect)
+    }
+}
+
+;;;
+* ANGLE = 0 -> sem problema
+
+* ANGLE = 30 -> aparece problema
+
+* Substitua as linhas
+    set dt = ms/1000
+    set rect.x = rect.x + (dir * dt * 0.4)
+    if rect.x > 1.0 => set dir = -1.0
+    if rect.x < 0.5  => set dir =  1.0
+    
+Por 
+    set dt = ms/1000
+    set rect.x = rect.x + (dt * 0.3)
+
+E os 2 problemas aparecem juntos
+    lua5.4: src/layer.c:273: aux: Assertion `a->w>0 && a->h>0' failed.
+    Aborted (core dumped)
+    
+Mas se trocar w = 0.25 por 0.3 o erro some 
+;;;

@@ -1,0 +1,27 @@
+require "atmos.env.pico"
+val pico = require "pico"
+
+pico.zet.window @{ title = "bug" }
+pico.zet.dim @{ '!', w = 300, h = 500 }
+
+val rect = @{ '%', x = 0.5, y = 0.5, w = 0.03, h = 0.03 }
+par {
+    every _, ms in :clock {
+        set rect.x = rect.x + ((0.3 * ms) / 1000.0)
+    }
+} with {
+    every :draw {
+        pico.output.draw.image("pixel.png", rect)
+    }
+}
+
+;;;
+lua5.4: src/layer.c:273: aux: Assertion `a->w>0 && a->h>0' failed.
+Aborted (core dumped)
+
+Se w = 0.03 -> erro
+Se w = 0.05 -> não dá erro
+
+Se desenhar apenas o rect, passa nos 2 testes
+pico.output.draw.rect(rect)
+;;;
