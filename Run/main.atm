@@ -67,8 +67,8 @@ func Robot (){
 	}
 }
 
-val enemies_layers = [ pico.layer.images( '!', nil, :ene1, "media/enemy1.png", @{ '#', w = 2, h = 1 ] ),
-						pico.layer.images( '!', nil, :ene2, "media/enemy2.png", [ '#', w = 2, h = 1 } ) ]
+val enemies_layers = [ pico.layer.images( '!', nil, :ene1, "media/enemy1.png", [ '#', w = 2, h = 1 ] ),
+						pico.layer.images( '!', nil, :ene2, "media/enemy2.png", [ '#', w = 2, h = 1 ] ) ]
 func Enemy (x0, y0, xf, yf, kind){
 	val enemy_rect = [ '%', x= x0 , y= y0, w = we, h = 0.1 ] where {
 		we = if kind == :enemy1 => 0.09	=> 0.08	
@@ -82,9 +82,9 @@ func Enemy (x0, y0, xf, yf, kind){
 	val angle = math.atan(vy,vx)
 	var frame = 1
 	
-	set pub = @{
+	set pub = [
 		rect = enemy_rect
-	}
+	]
 
 	watching until out_of_screen() {
 		par {
@@ -131,7 +131,7 @@ func End(score){
 			pico.output.draw.text("to restart", [ '%', x=0.5, y=0.7, h=0.085 ])
 		}	
 	} with {
-		await (:key.dn, :Up)
+		await :key.dn [key=:Up]
 	}
 }
 
@@ -152,12 +152,12 @@ func Play(){
 					pico.output.draw.layer(:label_txt, txt_pos)
 				}
 		} with {
-			await (:key.dn, :Up)
+			await :key.dn [key=:Up]
 			val time_fade, alpha_0, alpha_f = (800*1ms, 255, 0)
 			watching time_fade {
 				var t = 0
 				loop us on :clock {
-					set t = t + us/1000
+					set t = t + (us/1000)
 					;; inicio + (fim - inicio)*ease(t) (caso geral)
 					set alpha = alpha_0 + (((alpha_f - alpha_0)*t)//time_fade)
 				}
@@ -185,7 +185,7 @@ func Play(){
 				4 => (math.random(), 1, math.random(), 0)	;; down -> up
 			}			
 			val kind = if math.random(1,2) == 1 => :enemy1 => :enemy2
-			spawn [enemies] Enemy( x0, y0, xf, yf, kind)
+			spawn @enemies Enemy( x0, y0, xf, yf, kind)
 		}
 	} with {
 		loop on :clock {
