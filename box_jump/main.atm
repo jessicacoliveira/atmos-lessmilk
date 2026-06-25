@@ -50,7 +50,7 @@ task HitAnimation (x0, y0, lifespan, quantity){
         val vx, vy = ((speed * math.cos(ang)), (speed * math.sin(ang)))
         spawn @party Particle(x0, y0, vx, vy, 0, lifespan)
     }
-    await \{ #party == 0 }
+    await until (#party == 0)
 }
 
 pico.layer.image('!', nil, "pixel", "media/pixel.png")
@@ -80,7 +80,9 @@ task Particle (x0, y0, vx0, vy0, gravity, lifespan){
     } with {
         await(lifespan * 1ms)
     } with {
-        await \{ (rect.x < 0) || (rect.x > 1) || (rect.y < 0) || (rect.y > 1) }
+        await until (
+            (rect.x < 0) || (rect.x > 1) || (rect.y < 0) || (rect.y > 1)
+        )
     }
 }
 
@@ -119,7 +121,7 @@ task Player (){
             set player.x = 0.1
             set player.y = FLOOR_Y - (cube.h/2) - 0.15
             set vel_y, angle = (0, 0)
-            await \{ player.y == floor_y }
+            await until (player.y == floor_y)
         }
     } with {
         loop _, ms on :clock{
@@ -182,14 +184,14 @@ task Cube (x0,y0,h_mult){
 
 task Play(){
     pin player = spawn Player()
-    pin boom = task()
+    pin boom = tasks()
 
     var death_count = 0
     var level = 1
 
     spawn{
         par{
-            watching \{ level == 2 }{
+            watching until level==2 {
                 loop on :draw {
                     pico.output.draw.text("press space to jump", [ '%', x=0.5, y=0.825, w = 0.3, h = 0.1 ])
                 }
@@ -244,7 +246,7 @@ task Play(){
                 }
             }
         } with {
-            await \{ player.pub.rect.x >= 0.95 }
+            await until (player.pub.rect.x >= 0.95)
             emit @player :reset
         }
     }
