@@ -60,18 +60,18 @@ func Particle (x0, y0, vx0, vy0, gravity, lifespan){
     var angle_update = 0
 
     par:any {
-        every _, ms in :clock {
+        loop _, ms on :clock {
             val dt = ms / 1000.0
             set vy = vy + (gravity * dt)
             set rect.x = rect.x + (vx * dt)
             set rect.y = rect.y + (vy * dt)
         }
     } with {
-        every :clock{
+        loop on :clock{
             set angle_update = math.atan(vy, vx)
         }
     } with {
-        every :draw {
+        loop on :draw {
             pico.set.layer("pixel")
             pico.set.effect [ rotate=[ angle=math.deg(angle_update), anchor='C' ] ]
             pico.set.layer(:world)
@@ -108,7 +108,7 @@ func Player (){
         }
         loop{
             watching :reset{
-                every _, ms in :clock {
+                loop _, ms on :clock {
                     val dt = ms / 1000.0
                     set player.x = player.x + (speed_x * dt)
                     if player.y < floor_y => set angle = angle + (spin_speed * dt)
@@ -120,7 +120,7 @@ func Player (){
             await \{ player.y == floor_y }
         }
     } with {
-        every _, ms in :clock{
+        loop _, ms on :clock{
             val dt = ms / 1000.0
 
             if player.y < floor_y => set vel_y = vel_y + (gravity * dt)
@@ -145,7 +145,7 @@ func Player (){
             }
         }
     } with{
-        every :draw {
+        loop on :draw {
             pico.set.layer("player")
             pico.set.effect [ rotate=[ angle=angle, anchor='C' ] ]
             pico.set.layer(:world)
@@ -166,13 +166,13 @@ func Cube (x0,y0,h_mult){
         val v = full_height/grow_time
 
         watching @.grow_time{
-            every _, ms in :clock{
+            loop _, ms on :clock {
                 set rect_cube.h = rect_cube.h + (v * ms)
             }
         }
         set rect_cube.h = full_height
     } with {
-        every :draw{
+        loop on :draw{
             pico.output.draw.image(cube.source, rect_cube)
         }
     }
@@ -186,7 +186,7 @@ func Play(){
     spawn{
         par{
             watching \{ level == 2 }{
-                every :draw {
+                loop on :draw {
                     pico.output.draw.text("press space to jump", [ '%', x=0.5, y=0.825, w = 0.3, h = 0.1 ])
                 }
             }
@@ -199,7 +199,7 @@ func Play(){
             pico.output.sound "media/music.wav"
         } with {
             val p_line = [ '%', x = 0.5, y = FLOOR_Y ]
-            every :draw{
+            loop on :draw{
                 pico.output.draw.image("media/line.png", p_line)
             }
         }
@@ -223,12 +223,12 @@ func Play(){
         par:any {
             val txt_deaths = [ '%', x=0.15, y=0.825, h=0.1 ]
             val txt_level = [ '%', x=0.85, y=0.825, h=0.1 ]
-            every :draw {
+            loop on :draw {
                 pico.output.draw.text(death_count, txt_deaths)
                 pico.output.draw.text(j ++ "/" ++ (#levels), txt_level)
             }
         } with {
-            every :clock{
+            loop on :clock{
                 loop _, c in cubes{
                     if pico.vs.rect.rect (c.pub.rect, player.pub.rect){
                         pico.output.sound "media/hit.wav"
@@ -252,7 +252,7 @@ func End(death_count){
     val txt_score = [ '%', x=0.5, y=0.5, h=0.125 ]
     val txt_taunt = [ '%', x=0.5, y=0.6, h=0.125 ]
 
-    every :draw {
+    loop on :draw {
         pico.output.draw.text("you finished the game! :-D", txt_GG)
         pico.output.draw.text(("and died #" ++ death_count ++ "'times"), txt_score)
         pico.output.draw.text("can you do better?", txt_taunt)
