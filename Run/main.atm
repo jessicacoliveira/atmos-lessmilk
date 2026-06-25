@@ -2,11 +2,11 @@ require "atmos.env.pico"
 val pico = require "pico"
 
 val WIN_W, WIN_H = (350, 350)
-pico.zet.window @{ title = "Run (Atmos)" }
-pico.zet.dim @{	'!', w = WIN_W, h = WIN_H }
+pico.zet.window [ title = "Run (Atmos)" ]
+pico.zet.dim [	'!', w = WIN_W, h = WIN_H ]
 
-pico.zet.effect @{ color = @{ r = 52, g = 73, b = 94 } }
-pico.zet.pencil @{ color="white", font="media/Arial.ttf" }
+pico.zet.effect [ color = @{ r = 52, g = 73, b = 94 } ]
+pico.zet.pencil [ color="white", font="media/Arial.ttf" ]
 
 math.randomseed()
 
@@ -18,9 +18,9 @@ func check_lim (min, max, num){
 	}
 }
 
-val robot_layer = pico.layer.images( '!', nil, :rbt, "media/player.png", @{ '#', w = 2, h = 4 } )
+val robot_layer = pico.layer.images( '!', nil, :rbt, "media/player.png", [ '#', w = 2, h = 4 ] )
 func Robot (){
-	val robot_rect = @{ '%', x = 0.5, y = 0.5, w = 0.057, h = 0.068 }
+	val robot_rect = [ '%', x = 0.5, y = 0.5, w = 0.057, h = 0.068 ]
 	var frame = 3
 	
 	set pub = @{
@@ -48,7 +48,7 @@ func Robot (){
 		}
 	} with {
 		val total_frames_x = 2
-		val row_label = @{ Left = 4, Right = 2, Up = 3, Down = 1 }
+		val row_label = [ Left = 4, Right = 2, Up = 3, Down = 1 ]
 		var col_idx = 1
 		loop{
 			val evt = await (:key.dn, \e{ (e.key == :Left) || (e.key == :Right) || (e.key == :Up) || (e.key == :Down) })
@@ -67,10 +67,10 @@ func Robot (){
 	}
 }
 
-val enemies_layers = @{ pico.layer.images( '!', nil, :ene1, "media/enemy1.png", @{ '#', w = 2, h = 1 } ),
-						pico.layer.images( '!', nil, :ene2, "media/enemy2.png", @{ '#', w = 2, h = 1 } ) }
+val enemies_layers = [ pico.layer.images( '!', nil, :ene1, "media/enemy1.png", @{ '#', w = 2, h = 1 ] ),
+						pico.layer.images( '!', nil, :ene2, "media/enemy2.png", [ '#', w = 2, h = 1 } ) ]
 func Enemy (x0, y0, xf, yf, kind){
-	val enemy_rect = @{ '%', x= x0 , y= y0, w = we, h = 0.1 } where {
+	val enemy_rect = [ '%', x= x0 , y= y0, w = we, h = 0.1 ] where {
 		we = if kind == :enemy1 => 0.09	=> 0.08	
 	}
 	
@@ -104,7 +104,7 @@ func Enemy (x0, y0, xf, yf, kind){
 			
 			every :draw { 
 				pico.zet.layer(sprites[frame])
-				pico.zet.effect @{ rotate = @{ angle = math.deg(angle_gap), anchor = 'C' } }
+				pico.zet.effect [ rotate = [ angle = math.deg(angle_gap), anchor = 'C' ] ]
 				pico.zet.layer(:world)
 				pico.output.draw.layer(sprites[frame], enemy_rect)
 			}
@@ -125,10 +125,10 @@ func Enemy (x0, y0, xf, yf, kind){
 func End(score){
 	par_or{		
 		every :draw {
-			pico.output.draw.text("Game Over", @{ '%', x=0.5, y=0.2, h=0.085 })
-			pico.output.draw.text(("Score: " ++ score), @{ '%', x=0.5, y=0.4, h=0.085 })
-			pico.output.draw.text("press the UP arrow key", @{ '%', x=0.5, y=0.6, h=0.085 })
-			pico.output.draw.text("to restart", @{ '%', x=0.5, y=0.7, h=0.085 })
+			pico.output.draw.text("Game Over", [ '%', x=0.5, y=0.2, h=0.085 ])
+			pico.output.draw.text(("Score: " ++ score), [ '%', x=0.5, y=0.4, h=0.085 ])
+			pico.output.draw.text("press the UP arrow key", [ '%', x=0.5, y=0.6, h=0.085 ])
+			pico.output.draw.text("to restart", [ '%', x=0.5, y=0.7, h=0.085 ])
 		}	
 	} with {
 		await (:key.dn, :Up)
@@ -144,10 +144,10 @@ func Play(){
 		var alpha = 255
 		pico.layer.text( nil, :label_txt, 25, "use the arrow keys to move")
 		par_or{
-			val txt_pos = @{ '%', x=0.5, y=0.6, h=0.065 }
+			val txt_pos = [ '%', x=0.5, y=0.6, h=0.065 ]
 				every :draw {
 					pico.zet.layer(:label_txt)
-					pico.zet.effect @{ alpha = alpha }
+					pico.zet.effect [ alpha = alpha ]
 					pico.zet.layer(:world)
 					pico.output.draw.layer(:label_txt, txt_pos)
 				}
@@ -171,7 +171,7 @@ func Play(){
 			set score = score + 1
 		}
 	} with {
-		val txt_pos = @{ '%', x=0.2, y=0.1, h=0.075 }
+		val txt_pos = [ '%', x=0.2, y=0.1, h=0.075 ]
 		every :draw {
 			pico.output.draw.text ( "score:" ++ score, txt_pos )
 		}
