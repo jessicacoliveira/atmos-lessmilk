@@ -60,8 +60,8 @@ task Particle (x0, y0, vx0, vy0, gravity, lifespan){
     var angle_update = 0
 
     par:any {
-        loop _, ms on :clock {
-            val dt = ms / 1000.0
+        loop us on :clock {
+            val dt = us / 1000000.0
             set vy = vy + (gravity * dt)
             set rect.x = rect.x + (vx * dt)
             set rect.y = rect.y + (vy * dt)
@@ -112,8 +112,8 @@ task Player (){
         }
         loop{
             watching :reset{
-                loop _, ms on :clock {
-                    val dt = ms / 1000.0
+                loop us on :clock {
+                    val dt = us / 1000000.0
                     set player.x = player.x + (speed_x * dt)
                     if player.y < floor_y => set angle = angle + (spin_speed * dt)
                 }
@@ -124,8 +124,8 @@ task Player (){
             await until (player.y == floor_y)
         }
     } with {
-        loop _, ms on :clock{
-            val dt = ms / 1000.0
+        loop us on :clock {
+            val dt = us / 1000000.0
 
             if player.y < floor_y => set vel_y = vel_y + (gravity * dt)
             set player.y = player.y + (vel_y * dt)
@@ -170,8 +170,8 @@ task Cube (x0,y0,h_mult){
         val v = full_height/grow_time
 
         watching grow_time * 1ms {
-            loop _, ms on :clock {
-                set rect_cube.h = rect_cube.h + (v * ms)
+            loop us on :clock {
+                set rect_cube.h = rect_cube.h + (v * us)
             }
         }
         set rect_cube.h = full_height
