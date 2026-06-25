@@ -78,7 +78,7 @@ func Particle (x0, y0, vx0, vy0, gravity, lifespan){
             pico.output.draw.layer("pixel", rect)
         }
     } with {
-        await @.lifespan
+        await(lifespan * 1ms)
     } with {
         await \{ (rect.x < 0) || (rect.x > 1) || (rect.y < 0) || (rect.y > 1) }
     }
@@ -165,7 +165,7 @@ func Cube (x0,y0,h_mult){
         val full_height, grow_time = (cube.h * h_mult, 300 * h_mult)
         val v = full_height/grow_time
 
-        watching @.grow_time{
+        watching grow_time * 1ms {
             loop _, ms on :clock {
                 set rect_cube.h = rect_cube.h + (v * ms)
             }
@@ -204,7 +204,7 @@ func Play(){
             }
         }
     }
-    
+
     loop j in #levels{
         set level = j
         pin cubes = tasks (20)
