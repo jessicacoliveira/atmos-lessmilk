@@ -183,7 +183,9 @@ func Cube (x0,y0,h_mult){
 func Play(){
     pin player = spawn Player()
     pin boom = task()
-    var death_count, level = (0, 1)
+
+    var death_count = 0
+    var level = 1
 
     spawn{
         par{
