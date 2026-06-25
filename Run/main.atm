@@ -32,11 +32,11 @@ func Robot (){
 	} with {
 		val speed = 0.85
 		loop{
-			val evt = await (:key.dn, \e{ (e.key == :Left) || (e.key == :Right) || (e.key == :Up) || (e.key == :Down) })
+			val evt = await :key.dn until ((it.key == :Left) || (it.key == :Right) || (it.key == :Up) || (it.key == :Down))
 			val k = evt.key
-			watching :key.up, k {
-				every _,ms in :clock {
-					val ds = (speed * ms) / 1000.0
+			watching :key.up [key=evt.key] {
+				loop us on :clock {
+					val ds = (speed * us) / 1000000.0
 			    		match k {
 						:Left  => set robot_rect.x = check_lim ((robot_rect.w/2), 1 - (robot_rect.w/2), robot_rect.x - ds)
 						:Right => set robot_rect.x = check_lim ((robot_rect.w/2), 1 - (robot_rect.w/2), robot_rect.x + ds)	
@@ -51,7 +51,7 @@ func Robot (){
 		val row_label = [ Left = 4, Right = 2, Up = 3, Down = 1 ]
 		var col_idx = 1
 		loop{
-			val evt = await (:key.dn, \e{ (e.key == :Left) || (e.key == :Right) || (e.key == :Up) || (e.key == :Down) })
+			val evt = await :key.dn until ((it.key == :Left) || (it.key == :Right) || (it.key == :Up) || (it.key == :Down))
 			val k = evt.key
 			
 			set col_idx = (col_idx % total_frames_x) + 1
@@ -61,7 +61,7 @@ func Robot (){
 			
 		}
 	} with {
-		every :draw {
+		loop on :draw {
 			pico.output.draw.layer(robot_layer[frame], robot_rect)
 		}
 	}
@@ -86,23 +86,23 @@ func Enemy (x0, y0, xf, yf, kind){
 		rect = enemy_rect
 	}
 
-	watching out_of_screen {
+	watching until out_of_screen() {
 		par {
-			every _, ms in :clock {
-				val dt = ms / 1000.0
+			loop us on :clock {
+				val dt = us / 1000000.0
 				set enemy_rect.x = enemy_rect.x + (vx * dt)
 				set enemy_rect.y = enemy_rect.y + (vy * dt)
 			}
 		} with {
 			val total_frames = 2
-			every @.200{ ;; 5fps 
+			loop on 200ms { ;; 5fps 
 				set frame = (frame % total_frames) + 1
 			}
 		} with {
 			;; offset so the sprite points along the movement angle
 			val angle_gap = angle - (math.pi/2)
 			
-			every :draw { 
+			loop on :draw { 
 				pico.set.layer(sprites[frame])
 				pico.set.effect [ rotate = [ angle = math.deg(angle_gap), anchor = 'C' ] ]
 				pico.set.layer(:world)
@@ -124,7 +124,7 @@ func Enemy (x0, y0, xf, yf, kind){
 
 func End(score){
 	par:any{
-		every :draw {
+		loop on :draw {
 			pico.output.draw.text("Game Over", [ '%', x=0.5, y=0.2, h=0.085 ])
 			pico.output.draw.text(("Score: " ++ score), [ '%', x=0.5, y=0.4, h=0.085 ])
 			pico.output.draw.text("press the UP arrow key", [ '%', x=0.5, y=0.6, h=0.085 ])
@@ -145,7 +145,7 @@ func Play(){
 		pico.layer.text( nil, :label_txt, 25, "use the arrow keys to move")
 		par:any{
 			val txt_pos = [ '%', x=0.5, y=0.6, h=0.065 ]
-				every :draw {
+				loop on :draw {
 					pico.set.layer(:label_txt)
 					pico.set.effect [ alpha = alpha ]
 					pico.set.layer(:world)
@@ -153,11 +153,11 @@ func Play(){
 				}
 		} with {
 			await (:key.dn, :Up)
-			val time_fade, alpha_0, alpha_f = (800, 255, 0)
-			watching @.time_fade{
+			val time_fade, alpha_0, alpha_f = (800*1ms, 255, 0)
+			watching time_fade {
 				var t = 0
-				every _, ms in :clock {
-					set t = t + ms
+				loop us on :clock {
+					set t = t + us/1000
 					;; inicio + (fim - inicio)*ease(t) (caso geral)
 					set alpha = alpha_0 + (((alpha_f - alpha_0)*t)//time_fade)
 				}
@@ -167,16 +167,16 @@ func Play(){
 	}
 	
 	par:any {
-		every @1{
+		loop on 1s {
 			set score = score + 1
 		}
 	} with {
 		val txt_pos = [ '%', x=0.2, y=0.1, h=0.075 ]
-		every :draw {
+		loop on :draw {
 			pico.output.draw.text ( "score:" ++ score, txt_pos )
 		}
 	} with {
-		every @.500 {
+		loop on 500ms {
 			val spawn_side = math.random(1, 4)
 			val x0, y0, xf, yf = match spawn_side {
 				1 => (0, math.random(), 1, math.random())	;; left -> right
@@ -188,7 +188,7 @@ func Play(){
 			spawn [enemies] Enemy( x0, y0, xf, yf, kind)
 		}
 	} with {
-		every :clock {
+		loop on :clock {
 			loop _, e in enemies {
 				if pico.vs.rect.rect(player.pub.rect, e.pub.rect) => emit [player] :dead
 			}
