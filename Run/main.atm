@@ -27,7 +27,7 @@ func Robot (){
 		rect = robot_rect
 	}
 	
-	par_or{
+	par:any {
 		await :dead
 	} with {
 		val speed = 0.85
@@ -123,7 +123,7 @@ func Enemy (x0, y0, xf, yf, kind){
 }
 
 func End(score){
-	par_or{		
+	par:any{
 		every :draw {
 			pico.output.draw.text("Game Over", [ '%', x=0.5, y=0.2, h=0.085 ])
 			pico.output.draw.text(("Score: " ++ score), [ '%', x=0.5, y=0.4, h=0.085 ])
@@ -143,7 +143,7 @@ func Play(){
 	spawn{	
 		var alpha = 255
 		pico.layer.text( nil, :label_txt, 25, "use the arrow keys to move")
-		par_or{
+		par:any{
 			val txt_pos = [ '%', x=0.5, y=0.6, h=0.065 ]
 				every :draw {
 					pico.zet.layer(:label_txt)
@@ -166,7 +166,7 @@ func Play(){
 		}
 	}
 	
-	par_or {
+	par:any {
 		every @1{
 			set score = score + 1
 		}
