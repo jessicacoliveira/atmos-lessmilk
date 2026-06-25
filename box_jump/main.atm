@@ -3,11 +3,11 @@ val pico = require "pico"
 
 val WIN_W, WIN_H = (600, 200)
 val FLOOR_Y = 0.65
-pico.zet.window @{ title = "Box Jump (Atmos)" }
-pico.zet.dim @{ '!', w = WIN_W, h = WIN_H }
+pico.set.window @{ title = "Box Jump (Atmos)" }
+pico.set.dim @{ '!', w = WIN_W, h = WIN_H }
 
-pico.zet.effect @{ color = @{ r = 155, g = 89, b = 182 } }
-pico.zet.pencil @{ color="white", font="media/Arial.ttf" }
+pico.set.effect @{ color = @{ r = 155, g = 89, b = 182 } }
+pico.set.pencil @{ color="white", font="media/Arial.ttf" }
 val cube = @{ w = 0.033, h = 0.1, source = "media/player.png" }
 
 val levels = @{
@@ -72,9 +72,9 @@ func Particle (x0, y0, vx0, vy0, gravity, lifespan){
         }
     } with {
         every :draw {
-            pico.zet.layer("pixel")
-            pico.zet.effect @{ rotate=@{ angle=math.deg(angle_update), anchor='C' } }
-            pico.zet.layer(:world)
+            pico.set.layer("pixel")
+            pico.set.effect @{ rotate=@{ angle=math.deg(angle_update), anchor='C' } }
+            pico.set.layer(:world)
             pico.output.draw.layer("pixel", rect)
         }
     } with {
@@ -146,9 +146,9 @@ func Player (){
         }
     } with{
         every :draw {
-            pico.zet.layer("player")
-            pico.zet.effect @{ rotate=@{ angle=angle, anchor='C' } }
-            pico.zet.layer(:world)
+            pico.set.layer("player")
+            pico.set.effect @{ rotate=@{ angle=angle, anchor='C' } }
+            pico.set.layer(:world)
             pico.output.draw.layer("player", player)
         }
     }
