@@ -100,9 +100,11 @@ func Player (){
         rect = player
     ]
 
+
+
     par {
         par:any {
-            await (:key.dn, :Space)
+            await :key.dn [key=:Space]
         } with {
             await :mouse.button.dn
         }
@@ -135,7 +137,7 @@ func Player (){
     } with {
         loop {
             par:any {
-                await (:key.dn, :Space)
+                await :key.dn [key=:Space]
             } with {
                 await :mouse.button.dn
             }
@@ -192,7 +194,7 @@ func Play(){
             }
         } with {
             par:any {
-                await (:key.dn, :Space)
+                await :key.dn [key=:Space]
             } with {
                 await :mouse.button.dn
             }
