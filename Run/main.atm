@@ -5,7 +5,7 @@ val WIN_W, WIN_H = (350, 350)
 pico.zet.window [ title = "Run (Atmos)" ]
 pico.zet.dim [	'!', w = WIN_W, h = WIN_H ]
 
-pico.zet.effect [ color = @{ r = 52, g = 73, b = 94 } ]
+pico.zet.effect [ color = [ r = 52, g = 73, b = 94 ] ]
 pico.zet.pencil [ color="white", font="media/Arial.ttf" ]
 
 math.randomseed()
@@ -23,9 +23,9 @@ func Robot (){
 	val robot_rect = [ '%', x = 0.5, y = 0.5, w = 0.057, h = 0.068 ]
 	var frame = 3
 	
-	set pub = @{
+	set pub = [
 		rect = robot_rect
-	}
+	]
 	
 	par:any {
 		await :dead
