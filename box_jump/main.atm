@@ -34,11 +34,11 @@ val levels = @{
 }
 
 val type_cube = @{
-    [1] = @{ mult = 0.3, ds = 0   },
-    [2] = @{ mult = 1.0, ds = 0   },
-    [3] = @{ mult = 1.5, ds = 0   },
-    [4] = @{ mult = 1.8, ds = 0   },
-    [5] = @{ mult = 0.5, ds = -22 }
+    @1 = @{ mult = 0.3, ds = 0   },
+    @2 = @{ mult = 1.0, ds = 0   },
+    @3 = @{ mult = 1.5, ds = 0   },
+    @4 = @{ mult = 1.8, ds = 0   },
+    @5 = @{ mult = 0.5, ds = -22 }
 }
 
 func HitAnimation (x0, y0, lifespan, quantity){
@@ -48,7 +48,7 @@ func HitAnimation (x0, y0, lifespan, quantity){
         val ang   = math.random() * (2*math.pi)
         val speed = 0.1 + (math.random() * 0.6)
         val vx, vy = ((speed * math.cos(ang)), (speed * math.sin(ang)))
-        spawn [party] Particle(x0, y0, vx, vy, 0, lifespan)
+        spawn @party Particle(x0, y0, vx, vy, 0, lifespan)
     }
     await \{ #party == 0 }
 }
@@ -208,15 +208,15 @@ func Play(){
     loop j in #levels{
         set level = j
         pin cubes = tasks (20)
-        val current_level = levels[j]
+        val current_level = levels@j
 
         loop i in #current_level {
-            val kind = current_level[i]
+            val kind = current_level@i
             if kind != 0{
-                val data = type_cube[kind]
+                val data = type_cube@kind
                 val px = 0.16 + (i * cube.w)
                 val py = FLOOR_Y + (data.ds/WIN_H)
-                spawn [cubes] Cube (px, py, data.mult)
+                spawn @cubes Cube (px, py, data.mult)
             }
         }
 
@@ -233,15 +233,15 @@ func Play(){
                     if pico.vs.rect.rect (c.pub.rect, player.pub.rect){
                         pico.output.sound "media/hit.wav"
                         set death_count = death_count + 1
-                        spawn [boom] HitAnimation (player.pub.rect.x, player.pub.rect.y, 250, 8)
-                        emit [player] :reset
+                        spawn @boom HitAnimation (player.pub.rect.x, player.pub.rect.y, 250, 8)
+                        emit @player :reset
                         break()
                     }
                 }
             }
         } with {
             await \{ player.pub.rect.x >= 0.95 }
-            emit [player] :reset
+            emit @player :reset
         }
     }
     death_count
