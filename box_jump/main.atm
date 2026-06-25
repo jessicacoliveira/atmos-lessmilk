@@ -59,7 +59,7 @@ func Particle (x0, y0, vx0, vy0, gravity, lifespan){
     var vx, vy = (vx0, vy0)
     var angle_update = 0
 
-    par_or {
+    par:any {
         every _, ms in :clock {
             val dt = ms / 1000.0
             set vy = vy + (gravity * dt)
@@ -101,7 +101,7 @@ func Player (){
     ]
 
     par {
-        par_or{
+        par:any {
             await (:key.dn, :Space)
         } with {
             await :mouse.button.dn
@@ -134,7 +134,7 @@ func Player (){
         }
     } with {
         loop {
-            par_or{
+            par:any {
                 await (:key.dn, :Space)
             } with {
                 await :mouse.button.dn
@@ -191,7 +191,7 @@ func Play(){
                 }
             }
         } with {
-            par_or{
+            par:any {
                 await (:key.dn, :Space)
             } with {
                 await :mouse.button.dn
@@ -220,7 +220,7 @@ func Play(){
             }
         }
 
-        par_or{
+        par:any {
             val txt_deaths = [ '%', x=0.15, y=0.825, h=0.1 ]
             val txt_level = [ '%', x=0.85, y=0.825, h=0.1 ]
             every :draw {
