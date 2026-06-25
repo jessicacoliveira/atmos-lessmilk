@@ -19,7 +19,7 @@ func check_lim (min, max, num){
 }
 
 val robot_layer = pico.layer.images( '!', nil, :rbt, "media/player.png", [ '#', w = 2, h = 4 ] )
-func Robot (){
+task Robot (){
 	val robot_rect = [ '%', x = 0.5, y = 0.5, w = 0.057, h = 0.068 ]
 	var frame = 3
 	
@@ -55,26 +55,26 @@ func Robot (){
 			val k = evt.key
 			
 			set col_idx = (col_idx % total_frames_x) + 1
-			val row_idx = row_label[k]
+			val row_idx = row_label@k
 			
 			set frame = col_idx + ((row_idx - 1) * total_frames_x)
 			
 		}
 	} with {
 		loop on :draw {
-			pico.output.draw.layer(robot_layer[frame], robot_rect)
+			pico.output.draw.layer(robot_layer@frame, robot_rect)
 		}
 	}
 }
 
 val enemies_layers = [ pico.layer.images( '!', nil, :ene1, "media/enemy1.png", [ '#', w = 2, h = 1 ] ),
 						pico.layer.images( '!', nil, :ene2, "media/enemy2.png", [ '#', w = 2, h = 1 ] ) ]
-func Enemy (x0, y0, xf, yf, kind){
+task Enemy (x0, y0, xf, yf, kind){
 	val enemy_rect = [ '%', x= x0 , y= y0, w = we, h = 0.1 ] where {
 		we = if kind == :enemy1 => 0.09	=> 0.08	
 	}
 	
-	val sprites = if kind == :enemy1 => enemies_layers[1] => enemies_layers[2]
+	val sprites = if kind == :enemy1 => enemies_layers@1 => enemies_layers@2
 	
 	val enemy_travel = 3.0 ;; tween 3000ms do JS
 	val vx = (xf - x0) / enemy_travel
@@ -103,10 +103,10 @@ func Enemy (x0, y0, xf, yf, kind){
 			val angle_gap = angle - (math.pi/2)
 			
 			loop on :draw { 
-				pico.set.layer(sprites[frame])
+				pico.set.layer(sprites@frame)
 				pico.set.effect [ rotate = [ angle = math.deg(angle_gap), anchor = 'C' ] ]
 				pico.set.layer(:world)
-				pico.output.draw.layer(sprites[frame], enemy_rect)
+				pico.output.draw.layer(sprites@frame, enemy_rect)
 			}
 		}
 	} where {
@@ -122,7 +122,7 @@ func Enemy (x0, y0, xf, yf, kind){
 	}
 }
 
-func End(score){
+task End(score){
 	par:any{
 		loop on :draw {
 			pico.output.draw.text("Game Over", [ '%', x=0.5, y=0.2, h=0.085 ])
@@ -135,7 +135,7 @@ func End(score){
 	}
 }
 
-func Play(){
+task Play(){
 	pin enemies = tasks(30)
 	pin player = spawn Robot ()
 	var score = 0
@@ -190,7 +190,7 @@ func Play(){
 	} with {
 		loop on :clock {
 			loop _, e in enemies {
-				if pico.vs.rect.rect(player.pub.rect, e.pub.rect) => emit [player] :dead
+				if pico.vs.rect.rect(player.pub.rect, e.pub.rect) => emit @player :dead
 			}
 		}
 	} with {
