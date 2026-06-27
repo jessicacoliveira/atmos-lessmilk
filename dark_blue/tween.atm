@@ -1,17 +1,17 @@
 val Easing = require "easing"
 
-func tween (rect, target, duration, easing) {
+task tween (rect, target, duration, easing) {
 	val ease = if easing => easing => Easing.Linear
-	
-	val start = @{}
+
+	val start = []
 	loop k, v in target {
-		set start[k] = rect[k]
+		set start@k = rect@k
 	}
 
 	var elapsed = 0.0
-	watching @.duration {
-		every _, ms in :clock {
-			set elapsed = elapsed + ms
+	watching (duration * 1ms) {
+		loop us on :clock {
+			set elapsed = elapsed + (us/1000)
 
 			var t = elapsed / duration
 			if t > 1.0 => set t = 1.0
@@ -19,26 +19,26 @@ func tween (rect, target, duration, easing) {
 			val factor = ease(t)
 
 			loop k, _ in target {
-				set rect[k] = start[k] + ((target[k] - start[k]) * factor)
+				set rect@k = start@k + ((target@k - start@k) * factor)
 			}
 		}
 	}
 
 	loop k, v in target {
-		set rect[k] = v
+		set rect@k = v
 	}
 }
 
-func tween_from (rect, from, target, duration, easing) {
+task tween_from (rect, from, target, duration, easing) {
 	loop k, v in from {
-		set rect[k] = v
+		set rect@k = v
 	}
-	tween(rect, target, duration, easing)
+	await tween(rect, target, duration, easing)
 }
 
-val Tween = @{
+val Tween = [
 	to   = tween,
 	from = tween_from,
-}
+]
 
 Tween

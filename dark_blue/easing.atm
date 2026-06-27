@@ -1,9 +1,9 @@
-val Easing = @{
+val Easing = [
 	Linear = func (a){
 		return (a)
 	},
 
-	Quadratic = @{
+	Quadratic = [
 		In = func (a){
 			return (a * a)
 		},
@@ -22,9 +22,9 @@ val Easing = @{
 				}
 			}
 		}
-	},
+	],
 
-	Cubic = @{
+	Cubic = [
 		In = func (a){
 			return (a * a * a)
 		},
@@ -44,9 +44,9 @@ val Easing = @{
 				}
 			}
 		}
-	},
+	],
 
-	Exponential = @{
+	Exponential = [
 		In = func (a){
 			ifs {
 				a == 0 => return (0)
@@ -74,9 +74,9 @@ val Easing = @{
 				}
 			}
 		}
-	},
+	],
 
-	Circular = @{
+	Circular = [
 		In = func (a){
 			return (1 - math.sqrt(1 - (a * a)))
 		},
@@ -96,9 +96,9 @@ val Easing = @{
 				}
 			}
 		}
-	},
+	],
 
-	Bounce = @{
+	Bounce = [
 		Out = func (a){
 			val s, p = (7.5625, 2.75)
 			ifs {
@@ -141,8 +141,8 @@ val Easing = @{
 			}
 			return (1 - out)
 		}
-	}
-}
+	]
+]
 
 set Easing.quad_in  = Easing.Quadratic.In
 set Easing.quad_out = Easing.Quadratic.Out
