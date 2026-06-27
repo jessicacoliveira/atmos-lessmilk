@@ -3,90 +3,92 @@ val pico = require "pico"
 
 val WIN_W, WIN_H = (600, 200)
 val FLOOR_Y = 0.65
-pico.zet.window @{ title = "Box Jump (Atmos)" }
-pico.zet.dim @{ '!', w = WIN_W, h = WIN_H }
+pico.set.window [ title = "Box Jump (Atmos)" ]
+pico.set.dim [ '!', w = WIN_W, h = WIN_H ]
 
-pico.zet.effect @{ color = @{ r = 155, g = 89, b = 182 } }
-pico.zet.pencil @{ color="white", font="media/Arial.ttf" }
-val cube = @{ w = 0.033, h = 0.1, source = "media/player.png" }
+pico.set.effect [ color = [ r = 155, g = 89, b = 182 ] ]
+pico.set.pencil [ color="white", font="media/Arial.ttf" ]
+val cube = [ w = 0.033, h = 0.1, source = "media/player.png" ]
 
-val levels = @{
-  @{0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  @{0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0},
-  @{0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0},
-  @{0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0},
-  @{0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 5, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0},
-  @{0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  @{0, 0, 5, 5, 5, 0, 0, 0, 0, 2, 3, 0, 0, 0, 0, 0, 2, 3, 0, 0, 0, 0},
-  @{0, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 3},
-  @{0, 0, 0, 0, 2, 3, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 2, 2, 0, 0},
-  @{0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1, 2, 3, 0, 0, 0},
-  @{0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2},
-  @{0, 0, 5, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 2},
-  @{0, 0, 1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 2, 2, 2, 0, 0, 5},
-  @{0, 0, 0, 0, 2, 3, 2, 0, 0, 0, 5, 5, 0, 0, 0, 2, 3, 2, 0, 0, 0, 0},
-  @{0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 2},
-  @{0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0},
-  @{0, 0, 0, 0, 4, 0, 0, 0, 0, 5, 0, 0, 0, 3, 3, 0, 0, 0, 0, 5, 0, 0},
-  @{0, 0, 0, 0, 0, 5, 0, 0, 2, 2, 0, 0, 0, 0, 5, 5, 0, 0, 0, 4, 0, 0},
-  @{0, 0, 0, 0, 1, 4, 1, 0, 0, 0, 0, 1, 4, 1, 0, 0, 0, 0, 0, 1, 4, 1},
-  @{0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 2, 0, 0}
-}
+val levels = [
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 5, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 0, 5, 5, 5, 0, 0, 0, 0, 2, 3, 0, 0, 0, 0, 0, 2, 3, 0, 0, 0, 0],
+  [0, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 3],
+  [0, 0, 0, 0, 2, 3, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 2, 2, 0, 0],
+  [0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1, 2, 3, 0, 0, 0],
+  [0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2],
+  [0, 0, 5, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 2],
+  [0, 0, 1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 2, 2, 2, 0, 0, 5],
+  [0, 0, 0, 0, 2, 3, 2, 0, 0, 0, 5, 5, 0, 0, 0, 2, 3, 2, 0, 0, 0, 0],
+  [0, 0, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 3, 0, 0, 0, 5, 0, 0, 0, 0, 2],
+  [0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0],
+  [0, 0, 0, 0, 4, 0, 0, 0, 0, 5, 0, 0, 0, 3, 3, 0, 0, 0, 0, 5, 0, 0],
+  [0, 0, 0, 0, 0, 5, 0, 0, 2, 2, 0, 0, 0, 0, 5, 5, 0, 0, 0, 4, 0, 0],
+  [0, 0, 0, 0, 1, 4, 1, 0, 0, 0, 0, 1, 4, 1, 0, 0, 0, 0, 0, 1, 4, 1],
+  [0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 0, 0, 2, 0, 0]
+]
 
-val type_cube = @{
-    [1] = @{ mult = 0.3, ds = 0   },
-    [2] = @{ mult = 1.0, ds = 0   },
-    [3] = @{ mult = 1.5, ds = 0   },
-    [4] = @{ mult = 1.8, ds = 0   },
-    [5] = @{ mult = 0.5, ds = -22 }
-}
+val type_cube = [
+    @1 = [ mult = 0.3, ds = 0   ],
+    @2 = [ mult = 1.0, ds = 0   ],
+    @3 = [ mult = 1.5, ds = 0   ],
+    @4 = [ mult = 1.8, ds = 0   ],
+    @5 = [ mult = 0.5, ds = -22 ]
+]
 
-func HitAnimation (x0, y0, lifespan, quantity){
+task HitAnimation (x0, y0, lifespan, quantity){
     pin party = tasks(quantity)
 
     loop i in quantity {
         val ang   = math.random() * (2*math.pi)
         val speed = 0.1 + (math.random() * 0.6)
         val vx, vy = ((speed * math.cos(ang)), (speed * math.sin(ang)))
-        spawn [party] Particle(x0, y0, vx, vy, 0, lifespan)
+        spawn @party Particle(x0, y0, vx, vy, 0, lifespan)
     }
-    await \{ #party == 0 }
+    await until (#party == 0)
 }
 
 pico.layer.image('!', nil, "pixel", "media/pixel.png")
-func Particle (x0, y0, vx0, vy0, gravity, lifespan){
-    val rect = @{ '%', x = x0, y = y0, w = 0.015, h = 0.05 }
+task Particle (x0, y0, vx0, vy0, gravity, lifespan){
+    val rect = [ '%', x = x0, y = y0, w = 0.015, h = 0.05 ]
     var vx, vy = (vx0, vy0)
     var angle_update = 0
 
-    par_or {
-        every _, ms in :clock {
-            val dt = ms / 1000.0
+    par:any {
+        loop us on :clock {
+            val dt = us / 1000000.0
             set vy = vy + (gravity * dt)
             set rect.x = rect.x + (vx * dt)
             set rect.y = rect.y + (vy * dt)
         }
     } with {
-        every :clock{
+        loop on :clock{
             set angle_update = math.atan(vy, vx)
         }
     } with {
-        every :draw {
-            pico.zet.layer("pixel")
-            pico.zet.effect @{ rotate=@{ angle=math.deg(angle_update), anchor='C' } }
-            pico.zet.layer(:world)
+        loop on :draw {
+            pico.set.layer("pixel")
+            pico.set.effect [ rotate=[ angle=math.deg(angle_update), anchor='C' ] ]
+            pico.set.layer(:world)
             pico.output.draw.layer("pixel", rect)
         }
     } with {
-        await @.lifespan
+        await(lifespan * 1ms)
     } with {
-        await \{ (rect.x < 0) || (rect.x > 1) || (rect.y < 0) || (rect.y > 1) }
+        await until (
+            (rect.x < 0) || (rect.x > 1) || (rect.y < 0) || (rect.y > 1)
+        )
     }
 }
 
 pico.layer.image('!', nil, "player", cube.source )
-func Player (){
-    val player = @{ '%', x = x0, y = y0, w = cube.w, h = cube.h } where {
+task Player (){
+    val player = [ '%', x = x0, y = y0, w = cube.w, h = cube.h ] where {
         x0 = 0.1
         y0 = FLOOR_Y - (cube.h/2) - 0.15
     }
@@ -96,20 +98,16 @@ func Player (){
     val f_time = 0.7 
     val spin_speed = 180 / f_time ;; Tween -> 180 degrees in 700ms (linear)
 
-    set pub = @{
+    set pub = [
         rect = player
-    }
+    ]
 
     par {
-        par_or{
-            await (:key.dn, :Space)
-        } with {
-            await :mouse.button.dn
-        }
+        await (:key.dn [key=:Space] || :mouse.button.dn)
         loop{
             watching :reset{
-                every _, ms in :clock {
-                    val dt = ms / 1000.0
+                loop us on :clock {
+                    val dt = us / 1000000.0
                     set player.x = player.x + (speed_x * dt)
                     if player.y < floor_y => set angle = angle + (spin_speed * dt)
                 }
@@ -117,11 +115,11 @@ func Player (){
             set player.x = 0.1
             set player.y = FLOOR_Y - (cube.h/2) - 0.15
             set vel_y, angle = (0, 0)
-            await \{ player.y == floor_y }
+            await until (player.y == floor_y)
         }
     } with {
-        every _, ms in :clock{
-            val dt = ms / 1000.0
+        loop us on :clock {
+            val dt = us / 1000000.0
 
             if player.y < floor_y => set vel_y = vel_y + (gravity * dt)
             set player.y = player.y + (vel_y * dt)
@@ -134,72 +132,66 @@ func Player (){
         }
     } with {
         loop {
-            par_or{
-                await (:key.dn, :Space)
-            } with {
-                await :mouse.button.dn
-            }
+            await (:key.dn [key=:Space] || :mouse.button.dn)
             if player.y >= floor_y {
                 set vel_y = jump_impulse
                 pico.output.sound "media/jump.wav"
             }
         }
     } with{
-        every :draw {
-            pico.zet.layer("player")
-            pico.zet.effect @{ rotate=@{ angle=angle, anchor='C' } }
-            pico.zet.layer(:world)
+        loop on :draw {
+            pico.set.layer("player")
+            pico.set.effect [ rotate=[ angle=angle, anchor='C' ] ]
+            pico.set.layer(:world)
             pico.output.draw.layer("player", player)
         }
     }
 }
 
-func Cube (x0,y0,h_mult){
-    val rect_cube = @{ '%', x = x0, y = y0, w = cube.w, h = 0.01, anchor = 'S' }
+task Cube (x0,y0,h_mult){
+    val rect_cube = [ '%', x = x0, y = y0, w = cube.w, h = 0.01, anchor = 'S' ]
 
-    set pub = @{
+    set pub = [
         rect = rect_cube
-    }
+    ]
 
     par{
         val full_height, grow_time = (cube.h * h_mult, 300 * h_mult)
         val v = full_height/grow_time
 
-        watching @.grow_time{
-            every _, ms in :clock{
-                set rect_cube.h = rect_cube.h + (v * ms)
+        watching grow_time * 1ms {
+            loop us on :clock {
+                set rect_cube.h = rect_cube.h + (v * (us/1000))
             }
         }
         set rect_cube.h = full_height
     } with {
-        every :draw{
+        loop on :draw{
             pico.output.draw.image(cube.source, rect_cube)
         }
     }
 }
 
-func Play(){
+task Play(){
     pin player = spawn Player()
-    pin boom = task()
-    var death_count, level = (0, 1)
+    pin boom = tasks()
+
+    var death_count = 0
+    var level = 1
 
     spawn{
         par{
-            watching \{ level == 2 }{
-                every :draw {
-                    pico.output.draw.text("press space to jump", @{ '%', x=0.5, y=0.825, w = 0.3, h = 0.1 })
+            watching until level==2 {
+                loop on :draw {
+                    pico.output.draw.text("press space to jump", [ '%', x=0.5, y=0.825, w = 0.3, h = 0.1 ])
                 }
             }
         } with {
-            par_or{
-                await (:key.dn, :Space)
-            } with {
-                await :mouse.button.dn
-            }
+            await (:key.dn [key=:Space] || :mouse.button.dn) 
             pico.output.sound "media/music.wav"
         } with {
-            val p_line = @{ '%', x = 0.5, y = FLOOR_Y }
-            every :draw{
+            val p_line = [ '%', x = 0.5, y = FLOOR_Y ]
+            loop on :draw{
                 pico.output.draw.image("media/line.png", p_line)
             }
         }
@@ -208,51 +200,51 @@ func Play(){
     loop j in #levels{
         set level = j
         pin cubes = tasks (20)
-        val current_level = levels[j]
+        val current_level = levels@j
 
         loop i in #current_level {
-            val kind = current_level[i]
+            val kind = current_level@i
             if kind != 0{
-                val data = type_cube[kind]
+                val data = type_cube@kind
                 val px = 0.16 + (i * cube.w)
                 val py = FLOOR_Y + (data.ds/WIN_H)
-                spawn [cubes] Cube (px, py, data.mult)
+                spawn @cubes Cube (px, py, data.mult)
             }
         }
 
-        par_or{
-            val txt_deaths = @{ '%', x=0.15, y=0.825, h=0.1 }
-            val txt_level = @{ '%', x=0.85, y=0.825, h=0.1 }
-            every :draw {
+        par:any {
+            val txt_deaths = [ '%', x=0.15, y=0.825, h=0.1 ]
+            val txt_level = [ '%', x=0.85, y=0.825, h=0.1 ]
+            loop on :draw {
                 pico.output.draw.text(death_count, txt_deaths)
                 pico.output.draw.text(j ++ "/" ++ (#levels), txt_level)
             }
         } with {
-            every :clock{
+            loop on :clock{
                 loop _, c in cubes{
                     if pico.vs.rect.rect (c.pub.rect, player.pub.rect){
                         pico.output.sound "media/hit.wav"
                         set death_count = death_count + 1
-                        spawn [boom] HitAnimation (player.pub.rect.x, player.pub.rect.y, 250, 8)
-                        emit [player] :reset
+                        spawn @boom HitAnimation (player.pub.rect.x, player.pub.rect.y, 250, 8)
+                        emit @player :reset
                         break()
                     }
                 }
             }
         } with {
-            await \{ player.pub.rect.x >= 0.95 }
-            emit [player] :reset
+            await until (player.pub.rect.x >= 0.95)
+            emit @player :reset
         }
     }
     death_count
 }
 
-func End(death_count){
-    val txt_GG = @{ '%', x=0.5, y=0.3, h=0.175 }
-    val txt_score = @{ '%', x=0.5, y=0.5, h=0.125 }
-    val txt_taunt = @{ '%', x=0.5, y=0.6, h=0.125 }
+task End(death_count){
+    val txt_GG = [ '%', x=0.5, y=0.3, h=0.175 ]
+    val txt_score = [ '%', x=0.5, y=0.5, h=0.125 ]
+    val txt_taunt = [ '%', x=0.5, y=0.6, h=0.125 ]
 
-    every :draw {
+    loop on :draw {
         pico.output.draw.text("you finished the game! :-D", txt_GG)
         pico.output.draw.text(("and died #" ++ death_count ++ "'times"), txt_score)
         pico.output.draw.text("can you do better?", txt_taunt)
@@ -261,5 +253,5 @@ func End(death_count){
 
 loop{
     val deaths = await Play()
-    End(deaths)
+    await End(deaths)
 }
