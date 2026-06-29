@@ -1,0 +1,20 @@
+task Lerp (rect, target, duration){
+    val vel = []
+    loop k, _ in target {
+        set vel@k = (target@k - rect@k) / duration  ;; v = (pf - p0)/t
+    }
+    
+    watching (duration * 1ms) {
+        loop us on :clock {
+            loop k, _ in target{
+                set rect@k = rect@k + (vel@k * (us/1000))   ;; pos = pos + v*dt
+            }
+        }
+    }
+    loop k, v in target {
+        set rect@k = v
+    }
+}
+
+val Motion = [ lerp = Lerp ]
+Motion
