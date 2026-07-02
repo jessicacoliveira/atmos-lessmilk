@@ -92,7 +92,7 @@ task Player (){
         x0 = 0.1
         y0 = FLOOR_Y - (cube.h/2) - 0.15
     }
-    val speed_x, jump_impulse, floor_y, gravity = (0.28, -1.2, (FLOOR_Y - (player.h/2)), 3.5)
+    val speed_x, jump_impulse, floor_y, gravity = (0.28, -1.225, (FLOOR_Y - (player.h/2)), 3.5)
     var vel_y, angle = (0, 0)
     ;;val f_time = (2*(-jump_impulse))/gravity ;; to hell with physics
     val f_time = 0.7 
@@ -115,7 +115,7 @@ task Player (){
             set player.x = 0.1
             set player.y = FLOOR_Y - (cube.h/2) - 0.15
             set vel_y, angle = (0, 0)
-            await until (player.y == floor_y)
+            await until (player.y >= floor_y)
         }
     } with {
         loop us on :clock {
@@ -123,19 +123,22 @@ task Player (){
 
             if player.y < floor_y => set vel_y = vel_y + (gravity * dt)
             set player.y = player.y + (vel_y * dt)
-
-            if player.y >= floor_y {
+            
+            if player.y >= (floor_y+0.01) {     ;; 0.01 -> branch racing on vel_y between clamp and jump branches 
                 set player.y = floor_y
                 set vel_y = 0
                 set angle = 0
             }
         }
     } with {
-        loop {
+        loop{
             await (:key.dn [key=:Space] || :mouse.button.dn)
-            if player.y >= floor_y {
-                set vel_y = jump_impulse
+            par:any{
+                await until (player.y >= floor_y)
+                set vel_y = jump_impulse        ;;-> branch racing on vel_y
                 pico.output.sound "media/jump.wav"
+            } with {
+                await 120ms
             }
         }
     } with{

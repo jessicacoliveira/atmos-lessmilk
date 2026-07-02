@@ -86,7 +86,6 @@ task Player (lvl) {
 
 	val jump_impulse, speed, gravity  = (480, 300, 800)
 	var vx, vy  = (0, 0)
-	var on_ground = false	;; can we jump?
 	var dir, frame, flip_var = (1, 1, "none")
 
 	par:any {
@@ -95,17 +94,32 @@ task Player (lvl) {
 				match it.key {
 					:Left  => set vx, dir = (speed, -1)
 					:Right => set vx, dir = (speed, 1)
-					:Up    => if on_ground {
-						set vy = - jump_impulse
-						set on_ground = false
-						if sound => pico.output.sound("media/jump.wav")
-					}
-				}
-			}
+		        }
+		    }
+		} with {
+		    loop on :key.dn [key=:Up]{
+		        val grounded = func (){
+				        val y = rect.y + rect.h
+                        (tile_at(lvl.map, rect.x, y) == WALL) ||
+                        (tile_at(lvl.map, rect.x + (rect.w/2), y) == WALL) ||
+                        (tile_at(lvl.map, (rect.x + rect.w) - 1, y) == WALL)
+                }
+                par:any {
+                    await until (grounded())
+                    if sound => pico.output.sound("media/jump.wav")
+                    set vy = - jump_impulse
+                } with {
+                    await 120ms
+                }
+            }   
 		} with {
 			loop it on :key.up {
 				if (it.key == :Left) || (it.key == :Right) => set vx = 0
 			}
+		} with {
+		    loop on :key.up [key=:Up]{
+                if vy < 0 => set vy = vy * 0.6
+            }
 		} with {
 			watching :won {
 				loop us on :clock {
@@ -113,18 +127,15 @@ task Player (lvl) {
 
 					;; horizontal:
 					val new_x = between(0, rect.x + ((vx * dir) * dt), LVL_W - rect.w)
-					if (hit (lvl.map, new_x, rect.y, rect.w, rect.h, WALL) == false) => set rect.x = new_x
+					if (hit (lvl.map, new_x, rect.y, rect.w, rect.h, WALL) == false)
+					    => set rect.x = new_x
 
 					;; vertical:
 					set vy = vy + (gravity * dt)
 					val new_y = between(0, rect.y + (vy * dt), LVL_H - rect.h)
-					;;set on_ground = false
-					if hit(lvl.map, rect.x, new_y, rect.w, rect.h, WALL) {
-						if vy > 0 => set on_ground = true
-						set vy = 0
-					} else{
-						set rect.y = new_y
-					}
+					if hit(lvl.map, rect.x, new_y, rect.w, rect.h, WALL)
+					    => set vy = 0
+					    => set rect.y = new_y
 				}
 			}
 		} with {
@@ -433,4 +444,5 @@ await Menu()
 loop {
 	val count = await Play()
 	await End(count)
+	set sound = true
 }

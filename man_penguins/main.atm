@@ -50,7 +50,7 @@ pico.set.pencil [ color = "white" ]
 loop i in #map {
     loop j in #(map@i) {
         if map@i@j == BRICK {
-            pico.output.draw.rect [ '#', x=j, y=i, w=1, h=1 ]
+            pico.output.draw.image ("media/brick.png", [ '#', x=j, y=i, w=1, h=1 ] )
         }
     }
 }
