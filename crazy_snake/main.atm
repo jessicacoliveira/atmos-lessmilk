@@ -1,0 +1,278 @@
+require "atmos.env.pico"
+val pico = require 'pico'
+val Tween = require "tween"
+val E = require "easing"
+
+val WIN_W, WIN_H, TILE_SIZE = (500, 500, 20)
+val GAME_W, GAME_H = (340, 340)
+val COLS, ROWS = (GAME_W/TILE_SIZE, GAME_H/TILE_SIZE)
+
+var SOUND = true
+var BEST_SCORE = 0
+
+pico.set.window [ title = "Crazy Snake (Atmos)" ]
+pico.set.dim [ '!', w = WIN_W, h = WIN_H ]
+pico.set.pencil [ font = "media/Arial.ttf" ]
+
+pico.layer.empty(:world, :game_screen, true, [ '!', w = COLS, h = ROWS ], [ w = TILE_SIZE, h = TILE_SIZE ])
+val GAME_SIZE = [ '%', x=0.5, y=0.5, w=0.7, h=0.7 ]
+
+pico.set.layer (:game_screen)
+pico.set.scene [ target = GAME_SIZE ]
+pico.set.pencil [ color = :white, font = "media/Arial.ttf" ]
+pico.set.effect [ color = [ r = 0, g = 0, b = 0, a = 0] ] 
+pico.set.layer("world")
+
+task Menu (){
+    pico.push()
+    pico.set.layer("world")
+    pico.set.pencil [ color = :black ]
+    pico.set.effect [ color = :white ]
+    val sound_icon = pico.layer.images('!', nil, :sound_icon, "media/sound.png", [ '#', w=1, h=2 ])
+    pico.layer.text(nil, :press_up,  25, "press the up arrow key to start")
+
+    par:any{
+        val title_txt = [ '%', x = 0.5, y = 0.4, h = 0.15 ]
+        val start_txt = [ '%', x = 0.5, y = 0.7 ]
+        val sound_rect = [ '%', x = 0.9, y = 0.1, w = 0.056, h = 0.044 ]
+        var icon_frame = 1
+        val fade = [ alpha = 0 ]
+
+        par{
+            val h0 = title_txt.h
+            await Tween.from(title_txt, [ h = 0.001 ], [ h = h0 ], 1000, E.Bounce.Out)
+        } with {
+            val y0 = start_txt.y
+            loop{
+                await Tween.to(start_txt, [ y = (y0 + 0.05) ], 500 )
+                await Tween.to(start_txt, [ y = y0 ], 500 )
+            }
+        } with {
+            await 500ms
+            await Tween.from(fade, [ alpha = 0 ], [ alpha = 255 ], 500)
+        } with {
+            loop{
+                await :mouse.button.dn until (pico.vs.pos.rect(it, sound_rect))
+                set SOUND = !SOUND
+                set icon_frame = if SOUND => 1 => 2
+            }      
+	    } with {
+            loop on :draw {
+                pico.set.layer(:press_up)
+                pico.set.effect [ alpha = math.floor(fade.alpha) ]
+                pico.set.layer(sound_icon@icon_frame)
+                pico.set.effect [ alpha = math.floor(fade.alpha) ]
+                pico.set.layer(:world)
+                pico.output.draw.layer(:press_up, start_txt)
+                pico.output.draw.text("Crazy Snake", title_txt)
+                pico.output.draw.layer(sound_icon@icon_frame, sound_rect)
+            }
+        }
+	} with {
+        await :key.dn [key=:Up]
+    }
+    pico.set.layer(:world)
+    pico.pop()
+}
+
+task End (score){
+    pico.push()
+    pico.set.layer("world")
+    pico.set.pencil [ color = :white ]
+    pico.set.effect [ color = :black ]
+    pico.layer.text(nil, :restart,  25, "press the up arrow key to restart")
+    pico.layer.text(nil, :show_score,  25, "Score:" ++ score)
+    pico.layer.text(nil, :show_best,  25, "Best Score:" ++ BEST_SCORE)
+
+    par:any {
+        if SOUND => pico.output.sound("media/death.wav")
+
+        val youdied_txt = [ '%', x = 0.5, y = 0.3, h = 0.15 ]
+        val restart_txt = [ '%', x = 0.5, y = 0.76 ]
+        val fade = [ alpha = 0 ]
+        par {
+            val h0 = youdied_txt.h
+            await Tween.from(youdied_txt, [ h = 0.001 ], [ h = h0 ], 1000, E.Bounce.Out)
+		} with {
+            val y0 = restart_txt.y
+            loop{
+                await Tween.to(restart_txt, [ y = (y0 + 0.05) ], 500 )
+                await Tween.to(restart_txt, [ y = y0 ], 500 )
+            }
+        } with {
+            await 500ms
+            await Tween.from(fade, [ alpha = 0 ], [ alpha = 255 ], 500)
+        } with {
+            val score_txt = [ '%', x = 0.5, y = 0.535 ]
+            val bestscore_txt = [ '%', x = 0.5, y = 0.585 ]
+            loop on :draw {
+                pico.set.layer(:restart)
+                pico.set.effect [ alpha = math.floor(fade.alpha)]
+                pico.set.layer(:show_score)
+                pico.set.effect [ alpha = math.floor(fade.alpha) ]
+                pico.set.layer(:show_best)
+                pico.set.effect [ alpha = math.floor(fade.alpha) ]
+                pico.set.layer(:world)
+                pico.output.draw.text("You Died", youdied_txt)
+                pico.output.draw.layer(:restart, restart_txt)
+                pico.output.draw.layer(:show_score, score_txt)
+                pico.output.draw.layer(:show_best, bestscore_txt)
+            }
+        }
+    } with {
+        await :key.dn [key=:Up]
+    }
+    pico.pop()
+}
+
+val bgs = pico.layer.images('!', nil, :bg, "media/bg.png", [ '#', w=2, h=3 ])
+task Play(){
+    pico.push()
+    pico.set.layer("world")
+    pico.set.effect [ color = :white ]
+    set GAME_SIZE.x, GAME_SIZE.y, GAME_SIZE.w, GAME_SIZE.h = (0.5, 0.5, 0.7, 0.7)
+    pin effects = tasks()
+
+    if SOUND => pico.output.sound("media/music.wav")
+
+    var score = 0
+    var bg_frame = 1
+    val rot = [ angle = 0 ]
+
+    val coin = [ '#', x = math.random(1,COLS), y = math.random(1,ROWS), w = 0.05, h = 0.05 ]
+    spawn Tween.from(coin, [ w = 0.05, h = 0.05 ], [ w = 0.7, h = 0.7 ], 500)
+
+    var dir_x, dir_y = (0,-1)
+    val cx, cy = ((COLS//2) + 1, (ROWS//2) + 1)
+    var body = [ [ x=cx, y=cy+2 ], [ x=cx, y=cy+1 ], [ x=cx, y=cy ] ]
+
+    par:any{
+        loop{
+            val evt = await :key.dn until ((it.key == :Left) || (it.key == :Right) || (it.key == :Down) || (it.key == :Up))
+            ifs{
+                ((evt.key == :Left)  && ((dir_x != -1) && (dir_x != 1)))  => set dir_x, dir_y = (-1, 0)
+                ((evt.key == :Right) && ((dir_x != 1) && (dir_x != -1))) => set dir_x, dir_y = ( 1, 0)
+                ((evt.key == :Up)    && ((dir_y != -1) && (dir_y != 1)))  => set dir_x, dir_y = ( 0,-1)
+                ((evt.key == :Down)  && ((dir_y != 1) && (dir_y != -1))) => set dir_x, dir_y = ( 0, 1)
+            }
+        }
+    } with {
+        loop on 200ms{
+            watching until (#body == 0){
+                val old_head = body@#   ;; pick old head from peek
+                val new_head_x, new_head_y = (old_head.x + dir_x, old_head.y + dir_y) ;; place new head
+                set body@+ = [ x = new_head_x, y = new_head_y ] ;; old head becomes part of body
+                val head = body@#
+
+                ;; check coin
+                if (head.x == coin.x) && (head.y == coin.y){
+                    if SOUND => pico.output.sound("media/coin.wav")
+                    set score = score + 1
+                    if (score > 20) && (score < 30)
+                        => set bg_frame = (bg_frame % 6) + 1
+                        => set bg_frame = 1
+
+                    loop i in 1000{
+                        if place_coin() => break()
+                    } where {
+                        place_coin = func(){
+                            set coin.x = math.random(1, COLS)
+                            set coin.y = math.random(1, ROWS)
+                            loop _, seg in body {
+                                if (seg.x == coin.x) && (seg.y == coin.y) => return (false)
+                            }
+                            true
+                        }
+                    }
+                    spawn @effects Tween.from(coin, [ w = 0.05, h = 0.05 ], [ w = 0.7, h = 0.7 ], 500)
+                } else {
+                    table.remove(body, 1)
+                }
+
+                ;; check body
+                val body_hit = func(){
+                    loop i in ((#body) - 1) {
+                        val seg = body@i
+                        if (seg.x == head.x) && (seg.y == head.y) => return (true)
+                    }
+                    false
+                }
+                if body_hit() => set body = []
+            }
+        }
+    } with {
+        val game_size_copy = [ '%', x=0.5, y=0.5, w=0.7, h=0.7 ]
+
+        await until (score >= 5)
+        await Tween.to(rot, [ angle = 30 ], 5000 )
+
+        await until (score >= 10)
+        await Tween.to(GAME_SIZE, [ w = 0.35, h = 0.35 ], 3000 )
+
+        await until (score >= 15)
+        par:all{
+            await Tween.to(GAME_SIZE, [ w = 0.2, h = 0.65 ], 5000 )
+        } with {
+            await Tween.to(rot, [ angle = 0 ], 5000 )
+        }
+
+        await until (score >= 20)
+        await Tween.to(GAME_SIZE, [ w = game_size_copy.w, h = game_size_copy.h ], 3000 )
+
+        await until (score >= 25)
+        par:all{
+            await Tween.to(GAME_SIZE, [ w = 0.15, h = 0.15 ], 5000 )
+        } with {
+            await Tween.to(GAME_SIZE, [ x = 0.8, y = 0.8 ], 5000 )
+        }
+
+        await until (score >= 30)
+        await Tween.to(GAME_SIZE, [ x = 0.5, y = 0.5 ], 5 )
+        await 4s
+        await Tween.to(GAME_SIZE, [ x = 0.2, y = 0.2 ], 5 )
+
+        await until (score >= 35)
+        par:all{
+            await Tween.to(GAME_SIZE, [ w = game_size_copy.w, h = game_size_copy.h ], 5000 )
+        } with {
+            await Tween.to(GAME_SIZE, [ x = 0.5, y = 0.5 ], 5000 )
+        }
+
+        await until (score >= 40)
+        await Tween.to(rot, [ angle = -100 ], 5000 )
+
+        await until (score >= 45)
+        await Tween.to(rot, [ angle = -190 ], 3000 )
+
+        loop on :clock {
+            set rot.angle = rot.angle - 0.2
+        }
+    } with {
+        await until ((#body == 0) || ((body@#).x < 1) || ((body@#).x > COLS) || ((body@#).y < 1) || ((body@#).y > ROWS))
+        await Tween.to(GAME_SIZE, [ w = 0.05, h = 0.05 ], 500 )
+    } with {
+        val score_txt = [ '%', x = 0.05, y = 0.05, h = 0.06 ]
+        loop on :draw {
+            pico.set.layer(:game_screen)
+            pico.set.scene [ target = GAME_SIZE ]
+            pico.set.effect [ rotate = [ angle = rot.angle, anchor = 'C' ] ]
+            pico.output.draw.layer(bgs@bg_frame, [ '%', x = 0.5, y = 0.5, w = 1, h = 1 ])
+            pico.output.draw.image("media/coin.png", coin)
+            loop _, seg in body {
+                pico.output.draw.image("media/player.png", [ '#', x = seg.x, y = seg.y, w = 0.9, h = 0.9 ])
+            }
+            pico.output.draw.text("" ++ score, score_txt)
+            pico.set.layer("world")
+        }
+}
+    pico.set.layer("world")
+    pico.pop()
+    score
+}
+
+await Menu()
+loop{
+    val score = await Play()
+    if score > BEST_SCORE => set BEST_SCORE = score
+    await End(score)
+}
