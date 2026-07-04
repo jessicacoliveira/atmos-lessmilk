@@ -1,0 +1,318 @@
+require "atmos.env.pico"
+val pico = require "pico"
+val Tween = require "tween"
+val E = require "easing"
+val data = require "maps"
+
+val TILE = data.tile
+val NUM_LEVELS = #data.levels
+val EMPTY, HOLE, BOX, WALL = (0, 1, 2, 3)
+val WIN_W, WIN_H = (500, 400)
+
+pico.set.window [ title = "Fill the Holes (Atmos)" ]
+pico.set.dim [ '!', w = WIN_W, h = WIN_H ]
+pico.set.effect [ color = [ r = 26, g = 188, b = 156] ]
+pico.set.pencil [ color = :white, font = "media/Arial.ttf" ]
+
+var USER_CLICKS = -1
+val SLIDE_OFF = 1.2
+
+task EndAnimation (x0, y0, lifespan, quantity, frequency){
+    val frequency = frequency || 250
+    pin party = tasks(quantity)
+    val options = [ :box, :wall, :hole ]
+
+    loop i in quantity {
+        val ang   = math.random() * (2*math.pi)
+        val speed = 0.1 + (math.random() * 0.25)
+        val vx, vy = ((speed * math.cos(ang)), (speed * math.sin(ang)))
+        val sprite = options@(math.random(#options))
+        spawn @party Particle(x0, y0, vx, vy, 0.5, lifespan, sprite)
+        await (frequency * 1ms)
+    }
+    await until (#party == 0)
+}
+
+pico.layer.image('!', nil, :hole, "media/hole.png")
+pico.layer.image('!', nil, :wall, "media/wall.png")
+pico.layer.image('!', nil, :box, "media/box.png")
+task Particle (x0, y0, vx0, vy0, gravity, lifespan, kind){
+    val rect = [ '%', x = x0, y = y0, w = 0.1, h = 0.125 ]
+    var vx, vy = (vx0, vy0)
+    var angle = math.random() * 360
+    var spin_speed = math.random(90,360) 
+
+    par:any {
+        loop us on :clock {
+            val dt = us / 1000000.0
+            set vy = vy + (gravity * dt)
+            set rect.x = rect.x + (vx * dt)
+            set rect.y = rect.y + (vy * dt)
+            set angle = (angle + (spin_speed * dt))%360
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(kind)
+            pico.set.effect [ rotate=[ angle=angle, anchor='C' ] ]
+            pico.set.layer(:world)
+            pico.output.draw.layer(kind, rect)
+        }
+    } with {
+        await (lifespan * 1ms)
+    }
+}
+
+func set_dir (click, box){
+    val click2 = [ x = (click.x/WIN_W), y = (click.y/WIN_H) ]
+    val edge1 = [ x = box.x - (box.w/2), y = box.y - (box.h/2) ]
+    val edge2 = [ x = box.x + (box.w/2), y = box.y - (box.h/2) ]
+    val edge3 = [ x = box.x + (box.w/2), y = box.y + (box.h/2) ]
+    val edge4 = [ x = box.x - (box.w/2), y = box.y + (box.h/2) ]
+    val center = box
+
+    ifs{
+        in_triangle(click2, edge1, edge2, center)   => (0, -1)  ;; up
+        in_triangle(click2, edge2, edge3, center)   => (1, 0)   ;; right
+        in_triangle(click2, edge3, edge4, center)   => (0, 1)   ;; down
+        in_triangle(click2, edge4, edge1, center)   => (-1, 0)  ;; left
+        else                                        => (0, 0)
+    }
+} where {
+    sign = func(pt, a, b) {
+        ((pt.x - b.x) * (a.y - b.y)) - ((a.x - b.x) * (pt.y - b.y))
+    }
+    in_triangle = func(pt, a, b, c){
+        val b1 = sign(pt, a, b) < 0
+        val b2 = sign(pt, b, c) < 0
+        val b3 = sign(pt, c, a) < 0
+        (b1 == b2) && (b2 == b3)
+    }
+}
+
+task Box (x0, y0, intro_animation) {	
+    val box = [ '%', x = x0, y = y0, w = 0.1, h = 0.125 ]
+
+    set pub = [
+        rect = box
+    ]
+
+    par:any{
+        par {
+            if intro_animation {
+                val w0, h0 = (box.w, box.h)
+                await Tween.from(box, [ w = 0.005, h = 0.005 ], [ w = w0, h = h0 ], 1000, E.Bounce.Out)
+            }
+        } with {
+            val speed = 400
+            val speed_x, speed_y = (speed/WIN_W, speed/WIN_H)
+
+            watching :collided_hole{
+                loop {
+                    val click  = await :mouse.button.dn until (pico.vs.pos.rect(it, box))
+                    val dir_x, dir_y = set_dir(click, box)
+                    set USER_CLICKS = USER_CLICKS + 1
+
+                    val wall = watching :collided_wall {
+                        loop us on :clock {
+                            val vx = ((speed_x * us) * dir_x) / 1000000
+                            val vy = ((speed_y * us) * dir_y) / 1000000
+                            set box.x = box.x + vx
+                            set box.y = box.y + vy
+                        }
+                    }
+                    set box.x = wall@1 - (dir_x * box.w)
+                    set box.y = wall@2 - (dir_y * box.h)
+                }
+            }
+        }
+    } with {
+        loop on :draw {
+            pico.output.draw.image("media/box.png", box)
+        }
+    } with {
+        await until (out_of_screen(box))
+    } where {
+        out_of_screen = func(rect){
+            ((rect.x - (rect.w/2)) > 1.0) || ((rect.x + (rect.w/2)) < 0) ||
+            ((rect.y - (rect.h/2)) > 1.0) || ((rect.y + (rect.h/2)) < 0)
+        }
+    }
+}
+
+task Tile (x0, y0, kind) {
+	val tile = [ '%', x = x0, y = y0, w = 0.1, h = 0.125 ]
+
+    set pub = [
+        rect = tile,
+        collide = false
+    ]
+
+    par:any{
+        par{
+            val w0, h0 = (tile.w, tile.h)
+            await Tween.from(tile, [ w = 0.005, h = 0.005 ], [ w = w0, h = h0 ], 1000, E.Bounce.Out)
+        } with {
+            val path = if kind == :wall => "media/wall.png" => "media/hole.png"
+            loop on :draw {
+                pico.output.draw.image(path, tile)
+            }
+        }
+    } with {
+        await until (out_of_screen(tile))
+    } where {
+        out_of_screen = func(rect){
+            ((rect.x - (rect.w/2)) > 1.0) || ((rect.x + (rect.w/2)) < 0) ||
+            ((rect.y - (rect.h/2)) > 1.0) || ((rect.y + (rect.h/2)) < 0)
+        }
+    }
+}
+
+pico.layer.image('!', nil, :arrow, "media/arrows.png")
+task Intro () {
+    pin box = spawn Box(0.5, 0.5)
+    val arrows = [ '%', x = 0.5, y = 0.5, w = 0.2, h = 0.25 ]
+    val fade_out = [ alpha = 255 ]
+
+    par:any{
+        val w0, h0 = (arrows.w, arrows.h)
+        loop {
+            await Tween.to(arrows, [ w = w0*1.2, h = h0*1.2 ], 1000)
+            await Tween.to(arrows, [ w = w0, h = h0 ], 1000)
+        }
+    } with {
+        await :mouse.button.dn until (pico.vs.pos.rect(it, box.pub.rect))
+        await Tween.to(fade_out, [ alpha = 0 ], 400)
+        await (box)
+    } with {
+        val txt_title = [ '%', x = 0.5, y = 0.125, h = 0.125 ]
+        val txt_instruction = [ '%', x = 0.5, y = 0.925, w = 0.6, h = 0.05 ]
+        loop on :draw {
+            pico.set.layer(:arrow)
+            pico.set.effect [ alpha = math.floor(fade_out.alpha) ]
+            pico.set.layer(:world)
+            pico.output.draw.layer(:arrow, arrows)
+            pico.output.draw.text("Fill the Holes", txt_title)
+            pico.output.draw.text("click on the box above to start", txt_instruction)
+        }
+    }
+}
+
+task End () {
+    val txt_win   = [ '%', x = 0.5, y = 0.45, w = 0.5, h = 0.1 ]
+
+    par {
+        val w0, h0 = (txt_win.w, txt_win.h)
+        loop {
+            await Tween.to(txt_win, [ w = w0*1.2, h = h0*1.2 ], 1000)
+            await Tween.to(txt_win, [ w = w0, h = h0 ], 1000)
+        }
+    } with {
+        val txt_score = [ '%', x = 0.5, y = 0.55, w = 0.7, h = 0.05 ]
+        loop on :draw {
+            pico.output.draw.text("you won! :-D", txt_win)
+            pico.output.draw.text("you clicked #" ++ USER_CLICKS ++ "# times during the game", txt_score)
+        }
+    } with {
+        loop{
+            await EndAnimation (0.5, -0.5, 5000, 100)
+        }
+    }
+}
+
+task Play () {
+    pico.output.sound "media/music.wav"
+
+    var level_index = 1
+    loop{
+        until (level_index > #data.levels)
+        pico.output.sound "media/next.wav"
+
+        pin boxes       = tasks(10)
+        pin holes       = tasks(10)
+        pin walls       = tasks(10)
+
+        val lvl         = data.levels@level_index
+        val grid        = lvl.map
+        var total_holes = 0
+
+        loop i in #grid {
+            loop j in #(grid@1) {
+                val cell = grid@i@j
+                if cell != EMPTY {
+                    val x, y = tile_pos(i, j)
+                    ifs {
+                        cell == HOLE => {spawn @holes Tile(x, y, :hole, true); set total_holes = total_holes + 1 }
+                        cell == BOX  => spawn @boxes Box(x, y, true)
+                        cell == WALL => spawn @walls Tile(x, y, :wall)
+                    }
+                }
+            }
+        } where {
+            tile_pos = func (i, j) {
+                val map_cols, map_rows = (#(grid@1), #grid)
+                val grid_off_x = (WIN_W - (map_cols * TILE.w))/2
+                val grid_off_y = (WIN_H - (map_rows * TILE.h))/2
+
+                val x = (((j - 1) * TILE.w) + grid_off_x + (TILE.w / 2)) / WIN_W
+                val y = (((i - 1) * TILE.h) + grid_off_y + (TILE.h / 2)) / WIN_H
+                (x, y)
+            }
+        }
+        val txt_hint = [ '%', x = 0.5, y = 0.95, h = 0.06 ]
+        pin hint = spawn Tween.from(txt_hint, [ h = 0.005 ], [ h = txt_hint.h ], 1000, E.Bounce.Out)
+
+        val txt_restart = [ '%', x = 0.885, y = 0.05, w = 0.15, h = 0.06 ]
+        par:any{
+            loop on :clock {
+                loop _, box in boxes {
+                    loop _, hole in holes {
+                        if !hole.pub.collide && pico.vs.rect.rect(hole.pub.rect, box.pub.rect) {
+                            emit @box :collided_hole
+                            set hole.pub.collide = true
+                            pico.output.sound "media/hit.wav"
+                            await Tween.to(box.pub.rect, [ x = hole.pub.rect.x, y = hole.pub.rect.y ], 300)
+                            await Tween.to(box.pub.rect, [ w = box.pub.rect.w * 0.8, h = box.pub.rect.h * 0.8 ], 300)
+                            set total_holes = total_holes - 1
+                        }
+                    }
+                    loop _, wall in walls {
+                        if pico.vs.rect.rect(box.pub.rect, wall.pub.rect) {
+                            emit @box (:collided_wall [ wall.pub.rect.x, wall.pub.rect.y ])
+                            pico.output.sound "media/hit.wav"
+                        }
+                    }
+                }
+            }
+        } with {
+            await until (total_holes == 0)
+
+            pin reset_animations = tasks()
+            val all_tiles = [] ++ boxes ++ holes ++ walls
+            loop _, each in all_tiles{
+                spawn @reset_animations Tween.to(each.pub.rect, [ x = each.pub.rect.x - SLIDE_OFF ], 600, E.Quadratic.In)
+            }
+            spawn @reset_animations Tween.to(txt_hint, [ x = txt_hint.x - SLIDE_OFF ], 600, E.Quadratic.In)
+            await until (#reset_animations == 0)
+
+            set level_index = level_index + 1
+        } with {
+            await :mouse.button.dn until (pico.vs.pos.rect(it, txt_restart))
+            set USER_CLICKS = USER_CLICKS + 1
+        } with {
+            val txt_name  = [ '%', x = 0.175, y = 0.05, h = 0.06 ]
+            val txt_level = [ '%', x = 0.5,   y = 0.05, h = 0.06 ]
+            loop on :draw {
+                pico.output.draw.text("Fill the Holes", txt_name)
+                pico.output.draw.text("Restart", txt_restart)
+                pico.output.draw.text(level_index ++ "/" ++ NUM_LEVELS, txt_level)
+                pico.output.draw.text(lvl.hint, txt_hint)
+            }
+        }
+    }
+}
+
+await Intro()
+loop{
+    await Play()
+    await End()
+}
