@@ -1,0 +1,355 @@
+require "atmos.env.pico"
+val pico = require "pico"
+val Motion = require "motion"
+
+val WIN_W, WIN_H = (400, 500)
+pico.set.window [ title = "Connected (Atmos)" ]
+pico.set.dim [ '!', w = WIN_W, h = WIN_H ]
+pico.set.effect [ color = [ r=236, g=240, b=241 ] ]
+pico.set.pencil [ color = [ r=44, g=62, b=88 ], font = "media/Arial.ttf" ]
+
+val MAX_MOVES = 20
+var BEST_SCORE = 0
+var SOUND = true
+
+val dot_layer = pico.layer.images('!', nil, "dot", "media/dot.png", [ '#', w=2, h=4 ])
+
+task EndAnimation (x0, y0, lifespan, quantity, frequency){
+    val frequency = frequency || 250
+    pin party = tasks(quantity)
+
+    loop i in quantity {
+        val ang   = math.random() * (2*math.pi)
+        val speed = 0.1 + (math.random() * 0.25)
+        val vx, vy = ((speed * math.cos(ang)), (speed * math.sin(ang)))
+        val sprite = dot_layer@1
+        spawn @party Particle(x0, y0, vx, vy, 0.35, lifespan, sprite)
+        await (frequency * 1ms)
+    }
+    await until (#party == 0)
+}
+
+task Particle (x0, y0, vx0, vy0, gravity, lifespan, kind){
+    val rect = [ '%', x = x0, y = y0, w = 0.125, h = 0.1 ]
+    var vx, vy = (vx0, vy0)
+    var angle = math.random() * 360
+    var spin_speed = math.random(90,360)
+
+    par:any {
+        loop us on :clock {
+            val dt = us / 1000000.0
+            set vy = vy + (gravity * dt)
+            set rect.x = rect.x + (vx * dt)
+            set rect.y = rect.y + (vy * dt)
+            set angle = (angle + (spin_speed * dt))%360
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(kind)
+            pico.set.effect [ rotate=[ angle=angle, anchor='C' ] ]
+            pico.set.layer(:world)
+            pico.output.draw.layer(kind, rect)
+        }
+    } with {
+        await (lifespan * 1ms)
+    }
+}
+
+task Dot (i, j, is_init, is_menu){
+    val x0_grid, y0_grid, spot_w, spot_h = (0.125, 0.16, 0.15, 0.12) ;; tirar daqui
+    val dot_rect = [ '%', x = x, y = y, w = 0.002, h = 0.001] where {
+        x = x0_grid + ((j-1) * spot_w)
+        y = y0_grid + ((i-1) * spot_h)
+    }
+    val color = if is_menu => 1 => math.random(4)
+    val sprite_off, sprite_on = (1,2)
+    val fade_out = [ alpha = 255 ]
+
+    set pub = [
+        rect = dot_rect,
+        selected = false,
+        color = color
+    ]
+
+    par:any{
+        loop ev on :selected{
+            val combo = ev@1
+            set pub.selected = true
+            if SOUND{
+                ifs{
+                    combo < 5   => pico.output.sound("media/tap1.wav")
+                    combo < 9   => pico.output.sound("media/tap2.wav")
+                    else	    => pico.output.sound("media/tap3.wav")
+                }
+            }
+        }
+    } with {
+        loop on :reset {
+            set pub.selected = false
+        }
+    } with {
+        loop e on :fall {
+            val drop = e@1
+            await 100ms
+            await Motion.lerp(dot_rect, [ y = dot_rect.y + (drop * spot_h) ], 100*drop)
+        }
+    } with {
+        await :kill
+        par:all {
+            await Motion.lerp(dot_rect, [ w = (2 * dot_rect.w), h = (2*dot_rect.h) ], 300)
+        } with {
+            await Motion.lerp(fade_out, [ alpha = 0.01 ], 300)
+        }
+    } with {
+        spawn{
+            if !is_menu{
+                val delay = if is_init => (j * 100) => 400
+                await (delay * 1ms)
+                await Motion.lerp(dot_rect, [ w = 0.125, h = 0.1 ], 400)
+            } else {
+                set dot_rect.w = 0.125
+                set dot_rect.h = 0.1
+            }
+        }
+        loop on :draw {
+            val mode = if pub.selected == true => sprite_on => sprite_off
+            val frame = dot_layer@(((color-1)*2) + mode)
+            pico.set.layer(frame)
+            pico.set.effect [ alpha = math.floor(fade_out.alpha) ]
+            pico.set.layer(:world)
+            pico.output.draw.layer(frame, dot_rect)
+        }
+    }
+}
+
+task Game(){
+    pin dots = tasks (72) ;; it must be here (draw order)
+    var score, move_count = (0, 0)
+    var combo = []
+
+    par:any{
+        await until (move_count == MAX_MOVES)
+    } with {
+        val help_icon = [ '%', x = 0.5, y = 0.06 ]
+        val progress = [ '%', x = 0.08125, y = 0.862, w = 0.01, h = 0.076, anchor = 'NW' ]
+
+        par{
+            val error_273 = 0.005 ;; width can't be 0
+            val max_size = 0.83 ;; progress bar width size
+            loop{
+                val progress_w = math.min((#combo) * 0.07, max_size)
+                await Motion.lerp(progress, [ w = (progress_w + error_273) ], 100)
+            }
+        } with {
+            val score_txt = [ '%', x = 0.12, y = 0.065, h = 0.04 ]
+            val count_txt = [ '%', x = 0.87, y = 0.065, h = 0.04 ]
+            val progress_bar = [ '%', x = 0.5, y = 0.9 ]
+            loop on :draw {
+                pico.output.draw.text(score, score_txt)
+                pico.output.draw.text(move_count ++ "/" ++ MAX_MOVES, count_txt)
+                pico.output.draw.image("media/question.png", help_icon)
+                if (progress.w>0) => pico.output.draw.image("media/progress.png", progress)
+                pico.output.draw.image("media/bar.png", progress_bar)
+            }
+        } with {
+            loop{
+                await :mouse.button.dn until (pico.vs.pos.rect(it, help_icon))
+                watching :mouse.button.dn {
+                    loop on :draw {
+                        pico.output.draw.image("media/tuto.png", [ '%', x = 0.5, y = 0.5 ])
+                    }
+                }
+            }
+        }
+    } with {
+        val grid = []
+
+        loop i in 6{
+            set grid@i = []
+            loop j in 6{
+                set grid@i@j = spawn @dots Dot (i, j, true)
+            }
+        }
+
+        loop{
+            var last_i, last_j = (nil, nil)
+            par:any{
+                val pos = await :mouse.button.dn
+                loop i in 6{
+                    loop j in 6{
+                        val dot = grid@i@j
+                        if pico.vs.pos.rect(pos, dot.pub.rect){
+                            set combo@+ = dot
+                            set last_i, last_j = (i, j)
+                            emit @dot (:selected [#combo])
+                        }
+                    }
+                }
+
+                loop motion_pos on :mouse.motion{
+                    loop i in 6{
+                        loop j in 6{
+                            val dot = grid@i@j
+                            if !dot.pub.selected && pico.vs.pos.rect(motion_pos, dot.pub.rect){
+                                if (#combo == 0) || ((dot.pub.color == (combo@#).pub.color) && adjacent()){
+                                    set combo@+ = dot
+                                    set last_i, last_j = (i, j)
+                                    emit @dot (:selected [#combo])
+                                }
+                                else{
+                                loop _, dot in combo { emit @dot :reset }
+                                set combo = []
+                                await :mouse.button.up
+                                }
+                            } where{
+                                adjacent = func (){
+                                    var vertical = (i == last_i) && (math.abs(j - last_j) == 1)
+                                    var horizontal = (j == last_j) && (math.abs(i - last_i) == 1)
+                                    vertical || horizontal
+                                }
+                            }
+                        }
+                    }
+                }
+            } with {
+                await :mouse.button.up
+                ifs{
+                    (#combo == 1) => emit @(combo@#) :reset
+                    (#combo > 1)  => {
+                        ;; drop survivors and refill the top (bottom-up)
+                        loop col in 6 {
+                            var land_row = 6 
+                            loop step in 6 {
+                                val row = 7 - step
+                                val cell = grid@row@col
+                                if (cell != nil) && !cell.pub.selected {
+                                    val drop = land_row - row
+                                    if drop > 0 {
+                                        set grid@land_row@col = cell
+                                        set grid@row@col = nil
+                                        emit @cell (:fall [drop])
+                                    }
+                                    set land_row = land_row - 1
+                                }
+                            }
+                            loop row in land_row {
+                                set grid@row@col = spawn @dots Dot(row, col, false)
+                            }
+                        }
+                        loop _, dot in combo { emit @dot :kill }
+
+                        set score = score + (combo_size * multiplier) where{
+                            combo_size = #combo
+                            multiplier = ifs{
+                                combo_size < 5  => 1
+                                combo_size < 9  => 5
+                                else	    => 10
+                            }
+                        }
+                        set move_count = move_count + 1
+                        if SOUND => pico.output.sound("media/combo.wav")
+                    }
+                }
+                set combo = []
+            }
+        }
+    }
+    score
+}
+
+pico.layer.text(nil, "start_txt", 20, "connect the two dots to start")
+val snd = pico.layer.images('!', nil, "snd", "media/sound.png", [ '#', w=1, h=2 ])
+task Menu(){
+    pin dots = tasks(2)
+    val dot1 = spawn @dots Dot (4, 3, false, true)
+    val dot2 = spawn @dots Dot (4, 4, false, true)
+
+    var sound_frame = 1
+    val sound_icon = [ '%', x = 0.85, y = 0.1, w = 0.07, h = 0.044 ]
+    val rot = [ angle = 2 ]
+
+    par:any{
+        loop{
+            par:any{
+                val pos = await :mouse.button.dn
+                loop _, dot in dots{
+                    if !dot.pub.selected && pico.vs.pos.rect(pos, dot.pub.rect)
+                    => emit @dot (:selected [1])
+                }
+                loop motion_pos on :mouse.motion {
+                    loop _, dot in dots{
+                        if !dot.pub.selected && pico.vs.pos.rect(motion_pos, dot.pub.rect)
+                        => emit @dot (:selected [1])
+                    }
+                }
+            } with {
+                await :mouse.button.up
+                emit :reset
+            }
+        }
+    } with {
+        await until ((dot1.pub.selected == true) && (dot2.pub.selected == true))
+        await :mouse.button.up
+        if SOUND => pico.output.sound("media/combo.wav")
+    } with {
+        loop on :mouse.button.dn until (pico.vs.pos.rect(it, sound_icon)){
+            set SOUND = !SOUND
+            set sound_frame = if SOUND => 1 => 2
+        }
+    } with {
+        loop{
+            await Motion.lerp(rot, [ angle = 2 ], 300)
+            await Motion.lerp(rot, [ angle = -2 ], 300)
+        }
+    } with {
+        val title_txt = [ '%', x = 0.5, y = 0.1, h = 0.06 ]
+        val start_rect = [ '%', x = 0.5, y = 0.9, h = 0.04 ]
+        loop on :draw {
+            pico.set.layer("start_txt")
+            pico.set.effect [ rotate = [ angle = rot.angle, anchor = 'C' ] ]
+            pico.set.layer("world")
+            pico.output.draw.text("connected", title_txt)
+            pico.output.draw.layer("start_txt", start_rect)
+            pico.output.draw.layer(snd@sound_frame, sound_icon)
+        }
+    }
+}
+
+pico.layer.text(nil, :restart, 20, "click anywhere to restart")
+task End (score){
+    val rot = [ angle = 2 ]
+    
+    par:any {
+        await :mouse.button.dn
+    } with {
+        loop{
+            await Motion.lerp(rot, [ angle = 2 ], 300)
+            await Motion.lerp(rot, [ angle = -2 ], 300)
+        }
+    } with {
+        val end_txt = [ '%', x = 0.5, y = 0.4, h = 0.06 ]
+        val score_txt = [ '%', x = 0.5, y = 0.61, h = 0.06 ]
+        val best_txt = [ '%', x = 0.5, y = 0.665, h = 0.06 ]
+        val restart_rect = [ '%', x = 0.5, y = 0.9 ]
+        loop on :draw {
+            pico.set.layer(:restart)
+            pico.set.effect [ rotate = [ angle = rot.angle, anchor = 'C' ] ]
+            pico.set.layer("world")
+            pico.output.draw.layer(:restart, restart_rect)
+            pico.output.draw.text("you ended your 20 turns", end_txt)
+            pico.output.draw.text("you scored:" ++ score, score_txt)
+            pico.output.draw.text("your best score:" ++ BEST_SCORE, best_txt)
+        }
+    } with {
+        loop{
+            await EndAnimation (0.5, -0.2, 5000, 200)
+        }
+    }
+}
+
+await Menu()
+loop{
+    val score = await Game()
+    if score > BEST_SCORE => set BEST_SCORE = score
+    await End(score)
+}
