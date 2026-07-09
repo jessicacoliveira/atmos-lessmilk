@@ -1,0 +1,456 @@
+require "atmos.env.pico"
+val pico = require 'pico'
+val Tween = require "tween"
+val E = require "easing"
+
+val WIN_W, WIN_H = (450, 600)
+
+pico.set.window [ title = "Princess Quest (Atmos)" ]
+pico.set.dim [ '!', w = WIN_W, h = WIN_H ]
+pico.set.effect [ color = [ r = 163, g = 185, b = 255 ] ]
+pico.set.pencil [ color = :white, font = "media/Arial.ttf" ]
+
+var BEST_SCORE = 0
+var SOUND = true
+var WORLD_CAM = 0
+
+math.randomseed()
+
+func check_lim (min, max, number){
+    ifs{
+        number < min => min
+        number > max => max
+        else => number
+    }
+}
+
+task Particle (x0, y0, vx0, vy0, gravity, lifespan, kind){
+    val rect = [ '%', x = x0, y = y0, w = 0.06, h = 0.04 ]
+    var vx, vy = (vx0, vy0)
+    var angle = math.random() * 360
+    var spin_speed = math.random(90,360)
+
+    par:any {
+        loop us on :clock {
+            val dt = us / 1000000.0
+            set vy = vy + (gravity * dt)
+            set rect.x = rect.x + (vx * dt)
+            set rect.y = rect.y + (vy * dt)
+            set angle = (angle + (spin_speed * dt))%360
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(kind)
+            pico.set.effect [ rotate=[ angle=angle, anchor='C' ] ]
+            pico.set.layer(:world)
+            pico.output.draw.layer(kind, [ '%', x = rect.x, y = (rect.y - WORLD_CAM), w = rect.w, h = rect.h ])
+        }
+    } with {
+        await (lifespan * 1ms)
+    }
+}
+
+val princess_layer = pico.layer.images('!', nil, :princess, "media/princess.png", [ '#', w = 2, h = 1 ])
+val heart_layer = pico.layer.image('!', nil, :heart, "media/heart.png")
+task Princess (x0, y0, is_menu){
+    val rect = [ '%', x = x0, y = y0, w = 0.11, h = 0.12, anchor = 'S' ]
+
+    val speed_x, jump_impulse, gravity = (0.625, -0.85, 1.2)
+    val heart_impulse, v_heart = (-2, -0.35)
+    var vel_y, floor_y = (jump_impulse, rect.y)
+    
+    var dir, frame, flip_var = (1, 2, "none")
+
+    set pub = [
+        rect = rect,
+        vel = vel_y,
+        alive = true,
+        took_heart = false
+    ]
+    val w_original, h_original = (rect.w, rect.h)
+    
+    par:any{
+        loop us on :clock{
+            val dt = us / 1000000.0
+            if rect.y < floor_y => set vel_y = vel_y + (gravity * dt)
+
+            set rect.y = rect.y + (vel_y * dt)
+
+            if rect.y >= floor_y{
+                set rect.y = floor_y
+                await Tween.to(rect, [ w = (w_original * 1.3), h = (h_original * 0.7) ], 150)
+                set rect.w, rect.h = (w_original, h_original)
+                set vel_y = jump_impulse
+            }
+            set pub.vel = vel_y
+        }
+    } with { ;; all this branch dies with :hitSpike
+        par:any{
+            par{
+                if !is_menu {
+                    loop{
+                        val evt = await :key.dn until ((it.key == :Left) || (it.key == :Right))
+                        val k = evt.key
+                        set dir, frame, flip_var = if k == :Left => (-1, 1, "horizontal") => (1, 1, "none")
+                        watching :key.up [key=k] {
+                            loop us on :clock {
+                                val dt = us / 1000000.0
+                                set rect.x = check_lim((rect.w/2), 1 - (rect.w/2), rect.x + (dir*speed_x*dt))
+                            }
+                        }
+                        set frame = 2
+                    }
+                }
+            } with {
+                if !is_menu {
+                    loop{
+                        val evt = await :mouse.button.dn
+                        val k = evt.x/WIN_W
+                        set dir, frame, flip_var = if k > rect.x => (1, 1, "none") => (-1, 1, "horizontal")
+                        watching :mouse.button.up {
+                            loop us on :clock {
+                                val dt = us / 1000000.0
+                                set rect.x = check_lim((rect.w/2), 1 - (rect.w/2), rect.x + (dir*speed_x*dt))
+                            }
+                        }
+                        set frame = 2
+                    }
+                }
+            }
+        } with {
+            loop it on :hitPlatform {
+                val plat_top = it@1
+                set rect.y = plat_top
+                set vel_y = jump_impulse
+                set pub.vel = vel_y
+                if SOUND => pico.output.sound "media/jump.wav"
+                await Tween.to(rect, [ w = (w_original * 1.3), h = (h_original * 0.7) ], 150)
+                set rect.w, rect.h = (w_original, h_original)
+            }
+        } with {
+            loop on :hitHeart {
+                set vel_y = heart_impulse
+                if SOUND => pico.output.sound "media/heart.wav"
+                set pub.took_heart = true
+            }
+        } with {
+            loop on :clock {
+                if vel_y >= v_heart => set pub.took_heart = false
+            }
+        } with {
+            await :hitSpike
+            val spike_dmg = -0.5
+            if SOUND => pico.output.sound "media/hit.wav"
+            set vel_y = spike_dmg
+            set pub.alive = false
+        }
+        await until (((rect.y - rect.h) - WORLD_CAM) > 1 ) ;; <- it works, but...
+    } with {
+        pin party = tasks(100)
+        loop{
+            await until (pub.took_heart)
+            watching until (!pub.took_heart){
+                loop _ in 3{
+                    val vx = (math.random() - 0.5) * 0.20
+                    val vy = (math.random() - 0.5) * 0.20
+                    spawn @party Particle(rect.x + ((math.random() - 0.5)*0.1), rect.y, vx, vy, 0.2, 500, :heart)
+                }
+                await 50ms
+            }
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(princess_layer@frame)
+            pico.set.effect [ flip = flip_var ]
+            pico.set.layer(:world)
+            pico.output.draw.layer(princess_layer@frame, [ '%', x = rect.x, y = (rect.y - WORLD_CAM), w = rect.w, h = rect.h, anchor = 'S' ])
+        }
+    } with {
+        await until (WORLD_CAM < 0)
+        set floor_y = 1.5
+        await until (((rect.y - rect.h) - WORLD_CAM) > 1 )
+    }
+}
+
+task Platform (x0, y0, kind){
+    val rect = [ '%', x = x0, y = y0, w = 0.19, h = 0.053, anchor = 'NW' ]
+    var add_on_rect, add_on_dir = (nil, nil)
+
+    set pub = [
+        rect = rect,
+        add_on = nil
+    ]
+
+    if (kind == :spike) || (kind == :heart){
+        var delta_y = 0
+        if kind == :spike{
+            set add_on_dir = "media/spike.png"
+            set delta_y = (1.5*rect.h)
+        }
+        if kind == :heart{
+            set add_on_dir = "media/heart.png"
+        }
+        val add_on_dim = pico.get.image('!', add_on_dir)
+        set add_on_rect = [ '%', x = rect.x + (rect.w/2), y = rect.y + delta_y, w = add_on_dim.w/WIN_W, h = add_on_dim.h/WIN_H, anchor = 'S' ]
+        set pub.add_on = add_on_rect
+    }
+
+    par:any{
+        par{
+            if kind == :moving {
+                var dir_x = if math.random(1,2) == 1 => -1 => 1
+                val vel_x = 0.25
+                loop us on :clock{
+                    if (rect.x <= 0) || ((rect.x + rect.w) >= 1) => set dir_x = (-1*dir_x)
+                    val dt = us/1000000
+                    set rect.x = check_lim(0, 1 - rect.w, (rect.x + (dir_x * (vel_x * dt))))
+                }
+            }
+        } with {
+            loop on :draw{
+                pico.output.draw.image("media/platform.png",
+                    [ '%', x = rect.x, y = (rect.y - WORLD_CAM), w = rect.w, h = rect.h, anchor = 'NW' ])
+                if pub.add_on != nil =>
+                    pico.output.draw.image(add_on_dir,
+                        [ '%', x = pub.add_on.x, y = (pub.add_on.y - WORLD_CAM), w = pub.add_on.w, h = pub.add_on.h, anchor = 'S' ])
+            }
+        }
+    } with {
+       await until ((rect.y - WORLD_CAM) > 1) 
+    }
+}
+
+task Cloud (y0){
+    val rect = [ '%', x = math.random(), y = y0, w = 0.26, h = 0.12, anchor = 'NW' ]
+    val dir = if math.random(1,2) == 1 => 1 => -1
+
+    par:any{
+        val speed = 0.0167
+        loop us on :clock{
+            val dt = us / 1000000.0
+            set rect.x = rect.x + (dir*(speed*dt))
+        }
+    } with {
+        loop on :draw{
+            pico.output.draw.image("media/cloud.png",
+                [ '%', x = rect.x, y = (rect.y - WORLD_CAM), w = rect.w, h = rect.h, anchor = 'NW' ])
+        }
+    } with {
+        await until (((rect.x + rect.w) < 0) || (rect.x > 1) || ((rect.y - WORLD_CAM) > 1))
+    }
+}
+
+val snd_icon = pico.layer.images('!', nil, :snd, "media/mute.png", [ '#', w = 1, h = 2 ])
+pico.layer.text(nil, :press_up,  25, "press the UP arrow key to start")
+task Menu (){
+    val sound_icon = [ '%', x = 0.9, y = 0.08, w = 0.06, h = 0.03 ]
+    val rot = [ angle = 0 ]
+    
+    var sound_frame = 1
+    
+    pin platform = spawn Platform(0.405, 0.675)
+    pin player = spawn Princess(0.5, platform.pub.rect.y, true)
+
+    par:any{
+        loop{
+            await Tween.to(rot, [ angle = 2 ], 250)
+            await Tween.to(rot, [ angle = -2 ], 250)
+        }
+    } with {
+        loop{
+            await :mouse.button.dn until (pico.vs.pos.rect(it, sound_icon))
+            set SOUND = !SOUND
+            set sound_frame = if SOUND => 1 => 2
+        }
+    } with {
+        val txt_title  = [ '%', x = 0.5, y = 0.08, w = 0.6, h = 0.07]
+        val txt_slogan = [ '%', x = 0.5, y = 0.15, w = 0.8, h = 0.04 ]
+        val txt_start  = [ '%', x = 0.5, y = 0.9]
+        loop on :draw{
+            pico.set.layer(:press_up)
+            pico.set.effect [ rotate = [ angle=rot.angle, anchor='C' ] ]
+            pico.set.layer(:world)
+            pico.output.draw.layer(:press_up, txt_start)
+            pico.output.draw.text("Princess Quest", txt_title)
+            pico.output.draw.text("help the princess go as high as possible", txt_slogan)
+            pico.output.draw.layer(snd_icon@sound_frame, sound_icon)
+        }
+    } with {
+        await :key.dn [key=:Up]
+    } with {
+        await :mouse.button.dn until !pico.vs.pos.rect(it, sound_icon)
+    }
+}
+
+pico.layer.text(nil, :restart,  25, "press the UP arrow key to restart")
+task Dead (score){
+
+    if SOUND => pico.output.sound "media/dead.wav"
+
+    par:any{
+        val txt_restart   = [ '%', x = 0.5, y = 0.3 ]
+        val txt_dobetter  = [ '%', x = 0.5, y = 1.1, h = 0.05 ]
+        val txt_youdied   = [ '%', x = 0.5, y = 0.075, h = 0.07 ]
+        val txt_lastscore = [ '%', x = 0.5, y = 0.175, h = 0.055 ]
+        val txt_bestscore = [ '%', x = 0.5, y = 0.225, h = 0.055 ]
+        val rect_princess = [ '%', x = 0.5, y = 1.4, w = 0.5, h = 0.4 ]
+        val rot = [ angle = 0 ]
+        
+        par{
+            await Tween.to(txt_dobetter, [ y = 0.5 ], 2000, E.Bounce.Out)
+        } with {
+            await Tween.to(rect_princess, [ y = 0.8 ], 2000, E.Bounce.Out)
+        } with {
+            loop{
+                await Tween.to(rot, [ angle = 2 ], 500)
+                await Tween.to(rot, [ angle = -2 ], 500)
+            }
+        } with {
+            loop on :draw{
+                pico.set.layer(:restart)
+                pico.set.effect [ rotate = [ angle=rot.angle, anchor='C' ] ]
+                pico.set.layer(:world)
+                pico.output.draw.text ("oh no, you died", txt_youdied)
+                pico.output.draw.text("your score:" ++ score, txt_lastscore)
+                pico.output.draw.text("best score:" ++ BEST_SCORE, txt_bestscore)
+                pico.output.draw.layer(:restart, txt_restart)
+                pico.output.draw.text("I'm sure you can do better!", txt_dobetter)
+                pico.output.draw.image("media/princess_zoom.png", rect_princess)
+            }
+        }
+    } with {
+        await ((:key.dn [key=:Up]) || :mouse.button.dn)
+    }
+}
+
+task Game(){
+    val ground = [ '%', x = 0, y = 0.905, w = 1, h = 0.095, anchor = 'NW' ]
+    var score = 0
+    
+    pin clouds = tasks(6)
+    pin platforms = tasks(15)
+    pin spikes = tasks(5)
+    pin hearts = tasks(3)
+    pin player = spawn Princess (0.65, 0.905)
+
+    ;; -- init level --
+    spawn @clouds Cloud (0.5)
+    spawn @clouds Cloud (0.83)
+    spawn @platforms Platform (0.2, 0.75)
+    spawn @platforms Platform (0.42, 0.5)
+    spawn @platforms Platform (0.625, 0.25)
+    spawn @platforms Platform (0.625, 0.08)
+
+    if SOUND => pico.output.sound "media/music.wav"
+    
+    par:any{
+        await (player)
+    } with {
+        loop on :clock{
+            loop _, plat in platforms{
+                ;; a princesa está caindo e por cima da plataforma?
+                val check = (player.pub.rect.y < (plat.pub.rect.y + plat.pub.rect.h)) && (player.pub.vel > 0)
+                if check && pico.vs.rect.rect(plat.pub.rect, player.pub.rect){
+                    val plat_top = plat.pub.rect.y
+                    emit @player (:hitPlatform [plat_top])
+                }
+            }
+            loop _, plat in hearts{
+                val check = (player.pub.rect.y < (plat.pub.rect.y + plat.pub.rect.h)) && (player.pub.vel > 0)
+                if check && pico.vs.rect.rect(plat.pub.rect, player.pub.rect){
+                    val plat_top = plat.pub.rect.y
+                    emit @player (:hitPlatform [plat_top])
+                }
+                val heart_on = player.pub.took_heart
+                if !heart_on && pico.vs.rect.rect(plat.pub.add_on, player.pub.rect){
+                    emit @player (:hitHeart)
+                }
+            }
+            loop _, plat in spikes{
+                val check = (player.pub.rect.y < (plat.pub.rect.y + plat.pub.rect.h)) && (player.pub.vel > 0)
+                if check && pico.vs.rect.rect(plat.pub.rect, player.pub.rect){
+                    val plat_top = plat.pub.rect.y
+                    emit @player (:hitPlatform [plat_top])
+                }
+                if !player.pub.took_heart && pico.vs.rect.rect(plat.pub.add_on, player.pub.rect){
+                    emit @player (:hitSpike)
+                }
+            }
+            val check_ground = (player.pub.rect.y < (ground.y + ground.h)) && (player.pub.vel > 0)
+            if check_ground && pico.vs.rect.rect(ground, player.pub.rect){
+                val ground_top = ground.y
+                emit @player (:hitPlatform [ground_top])
+            }
+        }
+    } with {
+        val limit = 0.5
+        var next_cloud, next_platform = (0.083, 0.015)
+        
+        loop on :clock{
+            if player.pub.rect.y < (WORLD_CAM + limit) {
+                set WORLD_CAM = player.pub.rect.y - limit
+            }
+            set score = ((0 - WORLD_CAM) * (WIN_H / 10)) -> math.floor()
+            
+            if next_cloud > WORLD_CAM{
+                spawn @clouds Cloud (WORLD_CAM - 0.12)
+                set next_cloud = next_cloud - (0.16 + (math.random(33)/100))
+            }
+
+            if next_platform > WORLD_CAM {
+                val type_plat = level@(math.random(#level))
+                match type_plat {
+                    1 => {
+                        spawn @platforms Platform (math.random(11, 89)/100, WORLD_CAM - 0.05)
+                        spawn @platforms Platform (math.random(11, 89)/100, WORLD_CAM - 0.05)
+                    }
+                    
+                    2 => spawn @platforms Platform (math.random(11, 89)/100, WORLD_CAM - 0.05)
+                    
+                    3 => spawn @platforms Platform (math.random(11, 89)/100, WORLD_CAM - 0.05, :moving)
+                    
+                    4 => {
+                        if math.random(3) > 1{
+                            spawn @platforms Platform (math.random(11, 89)/100, WORLD_CAM - 0.05, :moving)
+                        } else {
+                            spawn @platforms Platform (math.random(11, 89)/100, WORLD_CAM - 0.05)
+                            spawn @platforms Platform (math.random(11, 89)/100, WORLD_CAM - 0.05)
+                        }
+                        spawn @spikes Platform (math.random(11, 89)/100, (WORLD_CAM - 0.05) - 0.25, :spike)
+                        set next_platform = next_platform - 0.25
+                    }
+                    
+                    5 => spawn @hearts Platform (math.random(11, 89)/100, WORLD_CAM - 0.05, :heart)
+                }
+                
+                set next_platform = next_platform - (0.116 + ((math.random(80)-1)/600))
+            } where {
+                level = ifs{
+                    score < 250     => [1, 1, 1, 1, 2, 2, 2, 3, 5, 5]
+                    score < 500         => [1, 1, 2, 2, 2, 3, 3, 4, 4, 5]
+                    score < 1000    => [1, 2, 2, 3, 3, 3, 4, 4, 4, 5]
+                    score < 2000     => [1, 2, 3, 3, 3, 4, 4, 4, 4, 5]
+                    score < 3000     => [2, 3, 3, 3, 4, 4, 4, 4, 4, 5]
+                    else             => [2, 3, 3, 4, 4, 4, 4, 4, 4, 4]
+                }
+            }
+        }        
+    } with {
+        val txt_score = [ '%', x = 0.05, y = 0.035, h = 0.05, anchor = 'NW' ]
+        loop on :draw{
+            pico.output.draw.image("media/ground.png", [ '%', x = 0, y = 0.905 - WORLD_CAM, w = 1, h = 0.095, anchor = 'NW' ])
+            pico.output.draw.text(score, txt_score)
+        }
+    }
+    set WORLD_CAM = 0
+    score
+}
+
+await Menu()
+loop{
+    pico.push()
+    val score = await Game()
+    if score > BEST_SCORE => set BEST_SCORE = score
+    await Dead(score)
+    pico.pop()
+}
