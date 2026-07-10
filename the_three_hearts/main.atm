@@ -1,0 +1,470 @@
+require "atmos.env.pico"
+val pico = require 'pico'
+val Tween = require "tween"
+val E = require "easing"
+val data = require "map"
+
+val TILE = data.tile                       ;; [ w=40, h=40 ]
+val MAP_COLS, MAP_ROWS = (data.w, data.h)  ;; 48 x 40
+val WIN_W, WIN_H = (480, 400)              ;; 12 x 10 tiles
+val LVL_W = MAP_COLS * TILE.w              ;; 1920
+val LVL_H = MAP_ROWS * TILE.h              ;; 1600
+val ROOMS_X = LVL_W // WIN_W               ;; 4 rooms (horizontal)
+val ROOMS_Y = LVL_H // WIN_H               ;; 4 rooms (vertical)
+
+val SOLID_MAX = 6
+val EXIT_KEY = 4
+val PLAYER_X0, PLAYER_Y0 = (240, 80)
+
+var SOUND = true
+
+pico.set.window [ title = "The Three Hearts (Atmos)" ]
+pico.set.dim [ '!', w = WIN_W, h = WIN_H ]
+pico.set.pencil [ color = :white, font = "media/Arial.ttf" ]
+pico.set.effect [ color = [ r = 169, g = 169, b = 169 ] ]
+
+pico.layer.empty(:world, :map, false, [ '!', w = MAP_COLS, h = MAP_ROWS ], TILE)
+pico.layer.empty(:world, :actors, true, [ '!', w = LVL_W, h = LVL_H ])
+pico.layer.empty(:world, :screen_effects, true, [ '!', w = WIN_W, h = WIN_H ])
+
+pico.set.layer(:map)
+pico.set.effect [ color = [ r = 169, g = 169, b = 169 ] ]
+pico.set.layer(:actors)
+pico.set.effect [ color = [ r = 0, g = 0, b = 0, a = 0 ] ]
+pico.set.pencil [ color="white", font="media/Arial.ttf" ]
+pico.set.layer(:screen_effects)
+pico.set.effect [ color = [ r = 0, g = 0, b = 0, a = 0 ] ]
+pico.set.layer(:world)
+
+func between (lower, value, higher) {
+    ifs {
+        value < lower  => lower
+        value > higher => higher
+        else           => value
+    }
+}
+
+func tile_at (world_x, world_y) {
+    val col = world_x // TILE.w
+    val row = world_y // TILE.h
+    ifs {
+        (col < 0) || (col >= MAP_COLS) => 0
+        (row < 0) || (row >= MAP_ROWS) => 0
+        else => data.map@((row * MAP_COLS) + col + 1)
+    }
+}
+
+func solid_hit (x, y, w, h) {
+    val pick_xs = [ x, x + (w/2), (x + w) - 1 ]
+    val pick_ys = [ y, y + (h/2), (y + h) - 1 ]
+    loop _, pick_x in pick_xs {
+        loop _, pick_y in pick_ys {
+            val tile = tile_at(pick_x, pick_y)
+            if (tile >= 1) && (tile <= SOLID_MAX) => return (true)
+        }
+    }
+    false
+}
+
+task Particle (x0, y0, vx0, vy0, gravity, scale, lifespan, kind){
+    val rect = [ '!', x = x0, y = y0, w = TILE.w * scale, h = TILE.h * scale, anchor = 'C' ]
+    var vx, vy = (vx0, vy0)
+    var angle = math.random() * 360
+    val spin = math.random(90,360)
+
+    par:any {
+        loop us on :clock {
+            val dt = us / 1000000.0
+            set vy = vy + (gravity * dt)
+            set rect.x = rect.x + (vx * dt)
+            set rect.y = rect.y + (vy * dt)
+            set angle = (angle + (spin * dt)) % 360
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(kind)
+            pico.set.effect [ alpha = 255, rotate = [ angle = angle, anchor = 'C' ] ]
+            pico.set.layer(:actors)
+            pico.output.draw.layer(kind, rect)
+            pico.set.layer(:world)
+        }
+    } with {
+        await (lifespan * 1ms)
+    }
+}
+
+val sound_icon = pico.layer.images('!', nil, :sound_icon, "media/sound.png", [ '#', w=1, h=2 ])
+pico.layer.text(nil, :press_up,  25, "press the UP arrow key to start")
+task Menu (){
+    pico.set.layer(:world)
+    par:any{
+        val title_rect = [ '%', x = 0.5, y = -0.4, w = 0.43, h = 0.24 ]
+        val start_txt = [ '%', x = 0.5, y = 0.7 ]
+        val sound_rect = [ '%', x = 0.9, y = 0.125, w = 0.058, h = 0.055 ]
+        var icon_frame = 1
+        val fade = [ alpha = 0 ]
+
+        par{
+            await Tween.to(title_rect, [ y = 0.5 ], 1000, E.Bounce.Out)
+        } with {
+            loop{
+                await Tween.to(start_txt, [ y = 0.825 ], 500 )
+                await Tween.to(start_txt, [ y = 0.875 ], 500 )
+            }
+        } with {
+            await 500ms
+            await Tween.to(fade, [ alpha = 255 ], 500)
+        } with {
+            loop{
+                await :mouse.button.dn until (pico.vs.pos.rect(it, sound_rect))
+                set SOUND = !SOUND
+                set icon_frame = if SOUND => 1 => 2
+            }      
+	    } with {
+            loop on :draw {
+                pico.set.layer(:press_up)
+                pico.set.effect [ alpha = math.floor(fade.alpha) ]
+                pico.set.layer(sound_icon@icon_frame)
+                pico.set.effect [ alpha = math.floor(fade.alpha) ]
+                pico.set.layer(:world)
+                pico.output.draw.layer(:press_up, start_txt)
+                pico.output.draw.image("media/menu.png", title_rect)
+                pico.output.draw.layer(sound_icon@icon_frame, sound_rect)
+            }
+        }
+	} with {
+        await :key.dn [key=:Up]
+    }
+}
+
+val plr = pico.layer.images('!', nil, :plr, "media/player.png", [ '#', w = 3, h = 4 ])
+task Player (doors) {
+    val rect = [ '!', x = PLAYER_X0, y = PLAYER_Y0, w = TILE.w, h = TILE.h, anchor = 'NW' ]
+    var frame = 1
+    
+    set pub = [
+        rect  = rect,
+    ]
+    
+    par {
+        val player_speed = 230
+        loop {
+            val evt = await :key.dn until ((it.key == :Left) || (it.key == :Right) || (it.key == :Up) || (it.key == :Down))
+            watching :key.up [key=evt.key] {
+                loop us on :clock {
+                    val dt = (us / 1000000)
+                    val dx, dy = match evt.key {
+                        :Left  => (-player_speed * dt, 0)
+                        :Right => ( player_speed * dt, 0)
+                        :Up    => (0, -player_speed * dt)
+                        :Down  => (0,  player_speed * dt)
+                    }
+                    val nx = between(0, rect.x + dx, LVL_W - rect.w)
+                    if (!solid_hit(nx, rect.y, rect.w, rect.h)) && (!door_blocked(nx, rect.y))
+                        => set rect.x = nx
+
+                    val ny = between(0, rect.y + dy, LVL_H - rect.h)
+                    if (!solid_hit(rect.x, ny, rect.w, rect.h)) && (!door_blocked(rect.x, ny))
+                        => set rect.y = ny
+                } where {
+                    door_blocked = func (bx, by) {
+                        val rect_check = [ '!', x = bx, y = by, w = TILE.w, h = TILE.h, anchor = 'NW' ]
+                        loop _, door in doors {
+                            if pico.vs.rect.rect(rect_check, door.pub.rect) => return (true)
+                        }
+                        false
+                    }
+                }
+            }
+        }
+    } with {
+        loop{
+            val evt = await :key.dn until ((it.key == :Left) || (it.key == :Right) || (it.key == :Up) || (it.key == :Down))
+            val row = match evt.key {
+                :Down  => 0
+                :Up    => 1
+                :Right => 2
+                :Left  => 3
+            }
+            var col = 2
+            set frame = (row * 3) + col
+            watching :key.up [key=evt.key] {
+                loop on 200ms{
+                    set col = if col == 2 => 3 => 2
+                    set frame = (row * 3) + col
+                }
+            }
+            set frame = (row * 3) + 1
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(:actors)
+            pico.output.draw.layer(plr@frame, [ '!', x = rect.x, y = rect.y, w = rect.w, h = rect.h, anchor = 'NW' ])
+            pico.set.layer(:world)
+        }
+    }
+}
+
+pico.layer.image('!', nil, :heart, "media/heart.png")
+task Heart (x0, y0) {
+    val rect = [ '!', x = x0, y = y0, w = TILE.w, h = TILE.h, anchor = 'NW' ]
+
+    set pub = [ rect = rect ]
+    
+    val fade_out = [ alpha = 255 ]
+    par:any {
+        await :hit
+        if SOUND => pico.output.sound("media/heart.wav")
+        par:all{
+            await Tween.to(rect, [ w = TILE.w * 2, h = TILE.h * 2 ], 200)
+        } with {
+            await Tween.to(fade_out, [ alpha = 0 ], 300)
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(:heart)
+            pico.set.effect [ alpha = math.floor(fade_out.alpha) ]
+            pico.set.layer(:actors)
+            pico.output.draw.layer(:heart, rect)
+            pico.set.layer(:world)
+        }
+    }
+}
+
+pico.layer.image('!', nil, :key, "media/key.png")
+task Key (x0, y0, key_id) {
+    val rect = [ '!', x = x0, y = y0, w = TILE.w, h = TILE.h, anchor = 'NW' ]
+
+    set pub = [
+        rect = rect,
+        key_id = key_id
+    ]
+
+    par:any {
+        await :hit
+        if SOUND => pico.output.sound("media/key.wav")
+    } with {
+        loop on :draw {
+            pico.set.layer(:actors)
+            pico.output.draw.layer(:key, rect)
+            pico.set.layer(:world)
+        }
+    }
+}
+
+pico.layer.image('!', nil, :door,  "media/door.png")
+task Door (x0, y0, key_id) {
+    val rect = [ '!', x = x0, y = y0, w = TILE.w, h = TILE.h, anchor = 'NW' ]
+
+    set pub = [
+        rect = rect,
+        key_id = key_id
+    ]
+
+    par:any {
+        await :open
+        await Tween.to(rect, [ x = x0 + (rect.w/2), y = y0 + (rect.h/2), w = 0, h = 0 ], 300)
+    } with {
+        loop on :draw {
+            pico.set.layer(:actors)
+            pico.output.draw.layer(:door, rect)
+            pico.set.layer(:world)
+        }
+    }
+}
+
+pico.layer.image('!', nil, :enemy, "media/enemy.png")
+task Enemy (x0, y0, move, walls) {
+    val rect = [ '!', x = x0, y = y0, w = TILE.w, h = TILE.h, anchor = 'NW' ]
+    var dir = 1
+
+    set pub = [
+        rect = rect
+    ]
+
+    par {
+        val enemy_speed = 200
+        loop us on :clock {
+            val ds = (enemy_speed * us * dir) / 1000000.0
+            match move {
+                1 => {
+                    val dx = rect.x + ds
+                    if blocked(dx, rect.y) => set dir = dir * (-1) => set rect.x = dx
+                }
+                2 => {
+                    val dy = rect.y + ds
+                    if blocked(rect.x, dy) => set dir = dir * (-1) => set rect.y = dy
+                }
+            } where {
+                blocked = func (bx, by) {
+                    if (bx < 0) || (bx > (LVL_W - rect.w)) || (by < 0) || (by > (LVL_H - rect.h)) => return (true)
+                    val rect_check = [ '!', x = bx, y = by, w = rect.w, h = rect.h, anchor = 'NW' ]
+                    loop _, wall in walls {
+                        if pico.vs.rect.rect(rect_check, wall) => return (true)
+                    }
+                    false
+                }
+            }
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(:actors)
+            pico.output.draw.layer(:enemy, rect)
+            pico.set.layer(:world)
+        }
+    }
+}
+
+val tiles = pico.layer.images('!', nil, :tiles, "media/tiles4.png", [ '#', w = 7, h = 4 ])
+pico.layer.image('!', nil, :dead,  "media/dead.png")
+pico.layer.image('!', nil, :particle, "media/heart.png")
+task Play () {
+
+    pico.set.layer(:map)
+    loop i in #data.map {
+        val g = data.map@i
+        if g > 0 {
+            val col = (i-1) % MAP_COLS
+            val row = (i-1) // MAP_COLS
+            pico.output.draw.layer(tiles@g, [ '#', x = col+1, y = row+1, w = 1, h = 1 ])
+        }
+    }
+    pico.set.layer(:world)
+
+    val wall_rects = [ ]
+    loop _, w in data.objects.walls {
+        set wall_rects@+ = [ '!', x = w.x, y = w.y - TILE.h, w = TILE.w, h = TILE.h, anchor = 'NW' ]
+    }
+
+    pin doors   = tasks()
+    pin player  = spawn Player(doors)
+    pin hearts  = tasks()
+    pin keys    = tasks()
+    pin enemies = tasks()
+
+    loop _, d in data.objects.doors {
+        spawn @doors   Door(d.x, d.y - TILE.h, d.key_id)
+    }
+    loop _, h in data.objects.hearts {
+        spawn @hearts  Heart(h.x, h.y - TILE.h)
+    }
+    loop _, k in data.objects.keys {
+        spawn @keys    Key(k.x, k.y - TILE.h, k.key_id)
+    }
+    loop _, e in data.objects.enemies {
+        spawn @enemies Enemy(e.x, e.y - TILE.h, e.move, wall_rects)
+    }
+
+    val cam = [ x = 0, y = 0 ]
+    var room_x, room_y = (0, 0)
+    val dead = [ alpha = 0 ]
+
+    par {
+        if SOUND{
+            pico.output.sound("media/music.wav")
+            loop on 44s{
+                pico.output.sound("media/music.wav")
+            }
+        }
+    } with {
+        val cam_speed = 1200
+        loop us on :clock {
+            val cx = player.pub.rect.x + (player.pub.rect.w / 2)
+            val cy = player.pub.rect.y + (player.pub.rect.h / 2)
+            set room_x = between(0, cx // WIN_W, ROOMS_X - 1)
+            set room_y = between(0, cy // WIN_H, ROOMS_Y - 1)
+            val step = cam_speed * (us / 1000000)
+            
+            set cam.x = cam.x + between(-step, (room_x * WIN_W) - cam.x, step)
+            set cam.y = cam.y + between(-step, (room_y * WIN_H) - cam.y, step)
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(:map)
+            pico.set.scene [ source = [ '!', x = cam.x, y = cam.y, w = WIN_W, h = WIN_H, anchor = 'NW' ] ]
+            pico.set.layer(:actors)
+            pico.set.scene [ source = [ '!', x = cam.x, y = cam.y, w = WIN_W, h = WIN_H, anchor = 'NW' ] ]
+            pico.set.layer(:world)
+        }
+    } with {
+        loop on :clock {
+            val p = player.pub.rect
+
+            loop _, h in hearts {
+                if pico.vs.rect.rect(p, h.pub.rect) {
+                    emit @h :hit
+                }
+            }
+
+            loop _, k in keys {
+                if pico.vs.rect.rect(p, k.pub.rect) {
+                    val id = k.pub.key_id
+                    loop _, d in doors {
+                        if d.pub.key_id == id => emit @d :open
+                    }
+                    emit @k :hit
+                }
+            }
+
+            loop _, e in enemies {
+                if pico.vs.rect.rect(p, e.pub.rect) {
+                    if SOUND => pico.output.sound("media/dead.wav")
+                    await Tween.to(dead, [ alpha = 255 ], 100)
+                    set player.pub.rect.x = PLAYER_X0
+                    set player.pub.rect.y = PLAYER_Y0
+                    set cam.x, cam.y = (0, 0)
+                    set room_x, room_y = (0, 0)
+                    await Tween.to(dead, [ alpha = 0 ], 1200)
+                }
+            }
+        }
+    } with {
+        await until (#hearts == 0)
+        if SOUND => pico.output.sound("media/heart.wav")
+        loop _, d in doors {
+            if d.pub.key_id == EXIT_KEY => emit @d :open
+        }
+        
+        val player_center_x = player.pub.rect.x + (player.pub.rect.w / 2)
+        val player_center_y = player.pub.rect.y + (player.pub.rect.h / 2)
+        val room_center_x = (between(0, player_center_x // WIN_W, ROOMS_X - 1) * WIN_W) + (WIN_W / 2)
+        val room_center_y = (between(0, player_center_y // WIN_H, ROOMS_Y - 1) * WIN_H) + (WIN_H / 2)
+        val congrats_rect = [ '!', x = room_center_x, y = room_center_y - 15, h = 0.01 ]
+        val go_to_rect = [ '!', x = room_center_x, y = room_center_y + 15, h = 0.01 ]
+        
+        par{
+            await Tween.to(congrats_rect, [ h = 25 ], 1500, E.Bounce.Out)
+        } with {
+            await Tween.to(go_to_rect, [ h = 25 ], 1500, E.Bounce.Out)
+        } with {
+            pin effects = tasks(200)
+            val gg_room_x = ((ROOMS_X - 1) * WIN_W) + (WIN_W / 2)
+            val gg_room_y = LVL_H ;;1600
+            loop on 50ms {
+                val ex = gg_room_x + ((math.random() * 420) - 210)
+                val vx0 = (math.random() * 10) - 5
+                val vy0 = -((math.random() * 100) + 100)
+                val scale = 0.7 + (math.random() * 0.6)
+                spawn @effects Particle(ex, gg_room_y, vx0, vy0, -100, scale, 1800, :particle)
+            }
+        } with {
+            loop on :draw {
+                pico.set.layer(:actors)
+                pico.output.draw.text("congratulation!", congrats_rect)
+                pico.output.draw.text("now go to the South-East", go_to_rect)
+                pico.set.layer("world")
+            }
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(:dead)
+            pico.set.effect [ alpha = math.floor(dead.alpha) ]
+            pico.set.layer(:screen_effects)
+            pico.output.draw.layer(:dead, [ '%', x = 0.5, y = 0.5, w = 1, h = 1 ])
+            pico.set.layer(:world)
+        }
+    }
+}
+
+await Menu()
+await Play()
