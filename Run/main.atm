@@ -18,7 +18,7 @@ func check_lim (min, max, num){
 	}
 }
 
-val robot_layer = pico.layer.images( '!', nil, :rbt, "media/player.png", [ '#', w = 2, h = 4 ] )
+val robot_layer = pico.layer.images [ mode='!', key=:rbt, path="media/player.png", sheet=[ '#', w = 2, h = 4 ] ]
 task Robot (){
 	val robot_rect = [ '%', x = 0.5, y = 0.5, w = 0.057, h = 0.068 ]
 	var frame = 3
@@ -67,8 +67,8 @@ task Robot (){
 	}
 }
 
-val enemies_layers = [ pico.layer.images( '!', nil, :ene1, "media/enemy1.png", [ '#', w = 2, h = 1 ] ),
-						pico.layer.images( '!', nil, :ene2, "media/enemy2.png", [ '#', w = 2, h = 1 ] ) ]
+val enemies_layers = [ pico.layer.images [ mode='!', key=:ene1, path="media/enemy1.png", sheet=[ '#', w = 2, h = 1 ] ],
+						pico.layer.images [ mode='!', key=:ene2, path="media/enemy2.png", sheet=[ '#', w = 2, h = 1 ] ] ]
 task Enemy (x0, y0, xf, yf, kind){
 	val enemy_rect = [ '%', x= x0 , y= y0, w = we, h = 0.1 ] where {
 		we = if kind == :enemy1 => 0.09	=> 0.08	
@@ -86,7 +86,7 @@ task Enemy (x0, y0, xf, yf, kind){
 		rect = enemy_rect
 	]
 
-	watching until out_of_screen() {
+	watching until (out_of_screen()) {
 		par {
 			loop us on :clock {
 				val dt = us / 1000000.0
@@ -125,10 +125,10 @@ task Enemy (x0, y0, xf, yf, kind){
 task End(score){
 	par:any{
 		loop on :draw {
-			pico.output.draw.text("Game Over", [ '%', x=0.5, y=0.2, h=0.085 ])
-			pico.output.draw.text(("Score: " ++ score), [ '%', x=0.5, y=0.4, h=0.085 ])
-			pico.output.draw.text("press the UP arrow key", [ '%', x=0.5, y=0.6, h=0.085 ])
-			pico.output.draw.text("to restart", [ '%', x=0.5, y=0.7, h=0.085 ])
+			pico.output.draw.text.fix("Game Over", [ '%', x=0.5, y=0.2, h=0.085 ])
+			pico.output.draw.text.dyn("/txt", ("Score: " ++ score), [ '%', x=0.5, y=0.4, h=0.085 ])
+			pico.output.draw.text.fix("press the UP arrow key", [ '%', x=0.5, y=0.6, h=0.085 ])
+			pico.output.draw.text.fix("to restart", [ '%', x=0.5, y=0.7, h=0.085 ])
 		}	
 	} with {
 		await :key.dn [key=:Up]
@@ -142,22 +142,22 @@ task Play(){
 	
 	spawn{	
 		var alpha = 255
-		pico.layer.text( nil, :label_txt, 25, "use the arrow keys to move")
+		pico.layer.text [ key=:label_txt, dim=[ '!', h=25 ], text="use the arrow keys to move" ]
 		par:any{
 			val txt_pos = [ '%', x=0.5, y=0.6, h=0.065 ]
-				loop on :draw {
-					pico.set.layer(:label_txt)
-					pico.set.effect [ alpha = alpha ]
-					pico.set.layer(:world)
-					pico.output.draw.layer(:label_txt, txt_pos)
-				}
+			loop on :draw {
+				pico.set.layer(:label_txt)
+				pico.set.effect [ alpha = alpha ]
+				pico.set.layer(:world)
+				pico.output.draw.layer(:label_txt, txt_pos)
+			}
 		} with {
 			await :key.dn [key=:Up]
 			val time_fade, alpha_0, alpha_f = (800*1ms, 255, 0)
-			watching time_fade {
+			watching (time_fade) {
 				var t = 0
 				loop us on :clock {
-					set t = t + (us/1000)
+					set t = t + us
 					;; inicio + (fim - inicio)*ease(t) (caso geral)
 					set alpha = alpha_0 + (((alpha_f - alpha_0)*t)//time_fade)
 				}
@@ -173,7 +173,7 @@ task Play(){
 	} with {
 		val txt_pos = [ '%', x=0.2, y=0.1, h=0.075 ]
 		loop on :draw {
-			pico.output.draw.text ( "score:" ++ score, txt_pos )
+			pico.output.draw.text.dyn("/txt_pos", "score:" ++ score, txt_pos)
 		}
 	} with {
 		loop on 500ms {
