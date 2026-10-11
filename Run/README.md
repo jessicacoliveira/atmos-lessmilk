@@ -229,3 +229,9 @@ A princípio, o jogo Run não sofre com lapsed listener, pois as **teclas e o te
 ![sound_issue](run_sound.png)
 
 Na versão em Atmos, o som não acumula. O `pico-sdl` carrega os sons em cache (?) uma vez por rodada. O par `pico.push/pico.pop` libera o recurso em cada iteração do laço principal. No entanto, esse aspecto está mais relacionado ao funcionamento do pico-sdl do que ao da linguagem em si. O destaque de Atmos fica em **não precisar de inscrições e em ter o tempo de vida determinado pelo escopo no qual a variável ou task está inserida**.
+
+## Mecanismos de sinalização
+
+[Sant'Anna](https://fsantanna.github.io/pingus/) define a *sinalização* como uma comunicação explícita entre entidades, sobretudo quando não há relação de hierarquia entre elas. Na versão em Phaser do Run, **nenhuma entidade se comunica com outra**. A cada quadro, o `update` chama `game.physics.overlap`, que testa o robô contra cada grupo de inimigos. Quando detecta a colisão, o `overlap` chama o *callback* `playerHit` ali mesmo, e nada fica registrado para rodar depois. 
+
+Na versão em Atmos, a detecção de colisão também é uma consulta feita periodicamente, mas o aviso é um evento. **Todo `emit` em Atmos é um *broadcast***. O alvo do emit apenas delimita a parte da árvore de *tasks* que recebe o evento podendo ser uma task específica, uma pool de tasks ou o jogo todo, por exemplo. No Run, o ramo de colisão do `Play` executa `emit @player :dead`, um *broadcast* restrito à subárvore do robô. O robô reage no seu próprio `await :dead`, e a sua *task* termina. O fim da *task* acorda o `await (player)` do `Play`, que toca o som e o `par:any` termina, abortando os outros ramos. Ninguém se cadastra em um emissor. Os eventos internos usam a mesma sintaxe dos externos e não exigem cancelamento explícito, porque a espera pertence à *task* que espera e desaparece quando ela termina.
