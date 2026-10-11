@@ -222,6 +222,8 @@ Em Atmos, **o tempo de vida está restrito ao próprio bloco de código**. A tas
 2. Ao receber `:dead`, ele termina, e seu término é o próprio evento que acorda o `await (player)`.
 3. Ao acordar, o `par:any` termina, `Play` retorna a pontuação para o laço principal, e tudo o que vivia nele (inimigos vivos e o robô) termina junto.
 
+---
+
 A princípio, o jogo Run não sofre com lapsed listener, pois as **teclas e o tempo são consultados a cada quadro e não há inscrições por parte do programador**. Mas **há um recurso que "acumula" durante a execução do jogo**. A cada rodada, um objeto de som é criado no `Play.create` e nunca usado, e outro é criado no `Over.create` e tocado uma vez na tela de pontuação. Os dois ficam registrados na lista do gerenciador de som (`game.sound._sounds`), que cresce em 2 a cada rodada e nunca diminui, conforme a figura. Ao contrário dos sprites, os sons não são recolhidos quando o próximo create sobrescreve a variável, porque o gerenciador continua guardando-os. Na versão 1.1.3 do Phaser, não há um meio de liberar esses objetos, e os exemplos oficiais que utilizam sons possuem uma única tela e não cobrem esse caso.
 
 ![sound_issue](run_sound.png)
