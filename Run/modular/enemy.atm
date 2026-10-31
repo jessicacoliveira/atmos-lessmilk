@@ -1,0 +1,57 @@
+val pico = require "pico"
+
+val enemies_layers = [ pico.layer.images [ mode='!', key=:ene1, path="media/enemy1.png", sheet=[ '#', w = 2, h = 1 ] ],
+                        pico.layer.images [ mode='!', key=:ene2, path="media/enemy2.png", sheet=[ '#', w = 2, h = 1 ] ] ]
+task Enemy (x0, y0, xf, yf, kind){
+    val enemy_rect = [ '%', x= x0 , y= y0, w = size.w, h = size.h ] where {
+        size = ENEMY.size@kind
+    }
+
+    val sprites = if kind == :enemy1 => enemies_layers@1 => enemies_layers@2
+
+    val vx = (xf - x0) / ENEMY.travel
+    val vy = (yf - y0) / ENEMY.travel
+    val angle = math.atan(vy,vx)
+    var frame = 1
+
+    set pub = [
+        rect = enemy_rect
+    ]
+
+    watching until (out_of_screen()) {
+        par {
+            loop us on :clock {
+                val dt = us / 1000000.0
+                set enemy_rect.x = enemy_rect.x + (vx * dt)
+                set enemy_rect.y = enemy_rect.y + (vy * dt)
+            }
+        } with {
+            val total_frames = 2
+            loop on (ENEMY.anim) {
+                set frame = (frame % total_frames) + 1
+            }
+        } with {
+            ;; offset so the sprite points along the movement angle
+            val angle_gap = angle - (math.pi/2)
+
+            loop on :draw {
+                pico.set.layer(sprites@frame)
+                pico.set.effect [ rotate = [ angle = math.deg(angle_gap), anchor = 'C' ] ]
+                pico.set.layer(:world)
+                pico.output.draw.layer(sprites@frame, enemy_rect)
+            }
+        }
+    } where {
+        out_of_screen = func (){
+            ifs {
+                ((enemy_rect.x - (enemy_rect.w/2)) > 1) => true
+                ((enemy_rect.x + (enemy_rect.w/2)) < 0) => true
+                ((enemy_rect.y - (enemy_rect.h/2)) > 1) => true
+                ((enemy_rect.y + (enemy_rect.h/2)) < 0) => true
+                else => false
+            }
+        }
+    }
+}
+
+Enemy

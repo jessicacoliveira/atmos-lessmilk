@@ -1,0 +1,15 @@
+set ROBOT = [
+    speed = 0.85,
+    w = 0.057,
+    h = 0.068,
+]
+set ENEMY = [
+    travel = 3.0,
+    interval = 500ms,
+    anim = 200ms,
+    max = 30,
+    size = [ enemy1 = [ w = 0.09, h = 0.1 ], enemy2 = [ w = 0.08, h = 0.1 ] ],
+]
+
+set SCORE_PERIOD = 1s
+set LABEL_FADE = 800ms

@@ -1,0 +1,59 @@
+val pico = require "pico"
+
+func check_lim (min, max, num){
+    ifs{
+        num > max => max
+        num < min => min
+        else    => num
+    }
+}
+
+val robot_layer = pico.layer.images [ mode='!', key=:rbt, path="media/player.png", sheet=[ '#', w = 2, h = 4 ] ]
+task Robot (){
+    val robot_rect = [ '%', x = 0.5, y = 0.5, w = ROBOT.w, h = ROBOT.h ]
+    var frame = 3
+
+    set pub = [
+        rect = robot_rect
+    ]
+
+    par:any {
+        await :dead
+    } with {
+        loop{
+            val evt = await :key.dn until ((it.key == :Left) || (it.key == :Right) || (it.key == :Up) || (it.key == :Down))
+            val k = evt.key
+            watching :key.up [key=evt.key] {
+                loop us on :clock {
+                    val ds = (ROBOT.speed * us) / 1000000.0
+                    match k {
+                        :Left  => set robot_rect.x = check_lim ((robot_rect.w/2), 1 - (robot_rect.w/2), robot_rect.x - ds)
+                        :Right => set robot_rect.x = check_lim ((robot_rect.w/2), 1 - (robot_rect.w/2), robot_rect.x + ds)
+                        :Up    => set robot_rect.y = check_lim ((robot_rect.h/2), 1 - (robot_rect.h/2), robot_rect.y - ds)
+                        :Down  => set robot_rect.y = check_lim ((robot_rect.h/2), 1 - (robot_rect.h/2), robot_rect.y + ds)
+                    }
+                }
+            }
+        }
+    } with {
+        val total_frames_x = 2
+        val row_label = [ Left = 4, Right = 2, Up = 3, Down = 1 ]
+        var col_idx = 1
+        loop{
+            val evt = await :key.dn until ((it.key == :Left) || (it.key == :Right) || (it.key == :Up) || (it.key == :Down))
+            val k = evt.key
+
+            set col_idx = (col_idx % total_frames_x) + 1
+            val row_idx = row_label@k
+
+            set frame = col_idx + ((row_idx - 1) * total_frames_x)
+
+        }
+    } with {
+        loop on :draw {
+            pico.output.draw.layer(robot_layer@frame, robot_rect)
+        }
+    }
+}
+
+Robot

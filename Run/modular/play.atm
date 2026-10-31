@@ -1,0 +1,70 @@
+val pico  = require "pico"
+val Robot = require "robot"
+val Enemy = require "enemy"
+
+task Play(){
+    pin enemies = tasks(ENEMY.max)
+    pin player = spawn Robot ()
+    var score = 0
+
+    spawn{
+        var alpha = 255
+        pico.layer.text [ key=:label_txt, dim=[ '!', h=25 ], text="use the arrow keys to move" ]
+        par:any{
+            val txt_pos = [ '%', x=0.5, y=0.6, h=0.065 ]
+            loop on :draw {
+                pico.set.layer(:label_txt)
+                pico.set.effect [ alpha = alpha ]
+                pico.set.layer(:world)
+                pico.output.draw.layer(:label_txt, txt_pos)
+            }
+        } with {
+            await :key.dn [key=:Up]
+            val time_fade, alpha_0, alpha_f = (LABEL_FADE, 255, 0)
+            watching (time_fade) {
+                var t = 0
+                loop us on :clock {
+                    set t = t + us
+                    ;; inicio + (fim - inicio)*ease(t) (caso geral)
+                    set alpha = alpha_0 + (((alpha_f - alpha_0)*t)//time_fade)
+                }
+            }
+            set alpha = alpha_f
+        }
+    }
+
+    par:any {
+        loop on (SCORE_PERIOD) {
+            set score = score + 1
+        }
+    } with {
+        val txt_pos = [ '%', x=0.2, y=0.1, h=0.075 ]
+        loop on :draw {
+            pico.output.draw.text.dyn("/txt_pos", "score:" ++ score, txt_pos)
+        }
+    } with {
+        loop on (ENEMY.interval) {
+            val spawn_side = math.random(1, 4)
+            val x0, y0, xf, yf = match spawn_side {
+                1 => (0, math.random(), 1, math.random())    ;; left -> right
+                2 => (1, math.random(), 0, math.random())    ;; righ -> left
+                3 => (math.random(), 0, math.random(), 1)    ;; up -> down
+                4 => (math.random(), 1, math.random(), 0)    ;; down -> up
+            }
+            val kind = if math.random(1,2) == 1 => :enemy1 => :enemy2
+            spawn @enemies Enemy( x0, y0, xf, yf, kind)
+        }
+    } with {
+        loop on :clock {
+            loop _, e in enemies {
+                if pico.vs.rect.rect(player.pub.rect, e.pub.rect) => emit @player :dead
+            }
+        }
+    } with {
+        await (player)
+        pico.output.sound "media/hit.wav"
+    }
+    score
+}
+
+Play

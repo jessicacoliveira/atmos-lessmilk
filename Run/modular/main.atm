@@ -1,0 +1,22 @@
+require "atmos.env.pico"
+val pico = require "pico"
+
+val WIN_W, WIN_H = (350, 350)
+pico.set.window [ title = "Run (Atmos)" ]
+pico.set.dim ['!', w = WIN_W, h = WIN_H ]
+
+pico.set.effect [ color = [ r = 52, g = 73, b = 94 ] ]
+pico.set.pencil [ color="white", font="media/Arial.ttf" ]
+
+math.randomseed()
+
+require "consts"
+val Play = require "play"
+val End  = require "end"
+
+loop{
+    pico.push()
+    val score = await Play()
+    await End(score)
+    pico.pop()
+}

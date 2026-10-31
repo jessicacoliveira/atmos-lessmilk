@@ -1,0 +1,16 @@
+val pico = require "pico"
+
+task End(score){
+    par:any{
+        loop on :draw {
+            pico.output.draw.text.fix("Game Over", [ '%', x=0.5, y=0.2, h=0.085 ])
+            pico.output.draw.text.dyn("/txt", ("Score: " ++ score), [ '%', x=0.5, y=0.4, h=0.085 ])
+            pico.output.draw.text.fix("press the UP arrow key", [ '%', x=0.5, y=0.6, h=0.085 ])
+            pico.output.draw.text.fix("to restart", [ '%', x=0.5, y=0.7, h=0.085 ])
+        }
+    } with {
+        await :key.dn [key=:Up]
+    }
+}
+
+End
