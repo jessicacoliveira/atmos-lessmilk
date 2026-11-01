@@ -1,0 +1,32 @@
+val pico = require "pico"
+val Motion = require "motion"
+
+task Bomb (){
+    val bomb_rect = [ '%', x = 0.5, y = BOMB.y, w = BOMB.w, h = BOMB.h ]
+
+    set pub = [
+        rect = bomb_rect
+    ]
+
+    await :start
+    par:any{
+        ;; body.velocity.y = 90 (90 pixels/s)
+        loop us on :clock {
+            val dt = us / 1s
+            set bomb_rect.y = bomb_rect.y + (BOMB.speed*dt)
+        }
+    } with {
+        loop on :hit {
+            pico.output.sound("media/hit.wav")
+            await Motion.linear(bomb_rect, [ y = bomb_rect.y - BOMB.push ], BOMB.push_time )
+        }
+    } with {
+        loop on :draw {
+            pico.output.draw.image("media/bomb.png", bomb_rect)
+        }
+    } with {
+        await :kill
+    }
+}
+
+Bomb

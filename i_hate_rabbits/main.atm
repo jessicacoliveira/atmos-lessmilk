@@ -10,9 +10,18 @@ pico.set.dim [ '!', w = WIN_W, h = WIN_H ]
 pico.set.effect [ color = [ r=46, g=204, b=113 ] ]
 pico.set.pencil [ color = :white, font = "media/Arial.ttf" ]
 
-pico.layer.text(nil, :press_space,  20, "press space to")
-pico.layer.text(nil, :save_hint,    20, "try to save the rabbits by pressing space")
-pico.layer.image('!', nil, :circle, "media/circle.png")
+val CIRCLE_RADIUS = 0.22
+val BAD = [ w = 0.08, h = 0.088, speed = 72, anim = 200ms ]
+val RABBIT = [ w = 0.04, h = 0.093, gap = 18, enter_dist = 0.3, enter = 300, jump_dist = 0.2, jump_up = 400, jump_down = 600, fade = 300 ]
+val PULSE = [ h0 = 0.045, big = 0.055, small = 0.050, time = 300 ]
+val VOWELS_SOURCE = [ "media/a.mp3", "media/e.mp3", "media/i.mp3", "media/o.mp3", "media/u.mp3" ]
+val HINT_FADE = 300
+val END_FADE = 1000
+val SCORE_START = 65
+
+pico.layer.text [ key=:press_space, dim=[ '!', h=20 ], text="press space to" ]
+pico.layer.text [ key=:save_hint, dim=[ '!', h=20 ], text="try to save the rabbits by pressing space" ]
+pico.layer.image [ mode='!', key=:circle, path="media/circle.png" ]
 
 var best_score = 0
 
@@ -28,10 +37,10 @@ val map = [
     [0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 ]
 
-val bad = pico.layer.images('!', nil, :bad, "media/bad.png", [ '#', w=2, h=1 ])
+val bad = pico.layer.images [ mode='!', key=:bad, path="media/bad.png", sheet=[ '#', w=2, h=1 ] ]
 task Bad (menu){
-    val a0, radius, h_bad = (math.rad(0 - 90), 0.22, 0.088)
-    val bad_rect = [ '%', x = x, y = y, w = 0.08, h = h_bad ] where {
+    val a0, radius, h_bad = (math.rad(0 - 90), CIRCLE_RADIUS, BAD.h)
+    val bad_rect = [ '%', x = x, y = y, w = BAD.w, h = h_bad ] where {
         r = radius + h_bad
         x = 0.5 + (r * math.cos(a0))
         y = 0.5 + (r * math.sin(a0))
@@ -44,15 +53,15 @@ task Bad (menu){
     ]
 
     par{
-        loop on 200ms{
+        loop on (BAD.anim){
             set bad_frame = (bad_frame % 2) + 1
         }
     } with {
         ;; Angular motion.
         if menu != true{
             loop us on :clock{
-                val ms = us / 1000
-                set angle = angle + ((72 * ms) / 1000)  ;; 72 deg/sec
+                val dt = us / 1s
+                set angle = angle + (BAD.speed * dt)  ;; 72 deg/sec
                 set pub.angle = angle
 
                 val a = math.rad(angle - 90)
@@ -70,11 +79,11 @@ task Bad (menu){
     }
 }
 
-pico.layer.image('!', nil, :alive, "media/rabbit2.png")
-pico.layer.image('!', nil, :dead, "media/rabbit2.png")
+pico.layer.image [ mode='!', key=:alive, path="media/rabbit2.png" ]
+pico.layer.image [ mode='!', key=:dead, path="media/rabbit2.png" ]
 task Rabbit (angle0){
-    val a, radius, h_rabbit = (math.rad(angle0 - 90), 0.22, 0.093)
-    val rabbit_rect = [ '%', x = x, y = y, w = 0.04, h = h_rabbit ] where {
+    val a, radius, h_rabbit = (math.rad(angle0 - 90), CIRCLE_RADIUS, RABBIT.h)
+    val rabbit_rect = [ '%', x = x, y = y, w = RABBIT.w, h = h_rabbit ] where {
         r = radius + h_rabbit
         x = 0.5 + (r * math.cos(a))
         y = 0.5 + (r * math.sin(a))
@@ -86,24 +95,24 @@ task Rabbit (angle0){
     ]
 
     ;; rabbit's distance from center
-    var delta_radius = [ r = 0.5 ]
-    var fade_out = [ alpha = 255 ]
+    val delta_radius = [ r = 0.5 ]
+    val fade_out = [ alpha = 255 ]
 
     par:any {
         ;; slide from offscreen
-        val initial_distance = 0.3
+        val initial_distance = RABBIT.enter_dist
         val r_0 = radius + rabbit_rect.h + initial_distance
         val r_final = r_0 - initial_distance
 
         set delta_radius.r = r_0
-        await Motion.lerp(delta_radius, [ r = r_final ], 300)
+        await Motion.linear(delta_radius, [ r = r_final ], RABBIT.enter)
 
-        val jump_distance = 0.2
+        val jump_distance = RABBIT.jump_dist
         val r_1 = radius + rabbit_rect.h
         val r_final1 = r_1 + jump_distance
         loop on :jump{
-            await Motion.lerp(delta_radius, [ r = r_final1 ], 300)
-            await Motion.lerp(delta_radius, [ r = r_1 ], 600)
+            await Motion.linear(delta_radius, [ r = r_final1 ], RABBIT.jump_up)
+            await Motion.linear(delta_radius, [ r = r_1 ], RABBIT.jump_down)
         }
     } with {
         loop on :clock{
@@ -125,25 +134,25 @@ task Rabbit (angle0){
     } with {
         await :next
         set pub.live = false
-        await Motion.lerp(fade_out, [ alpha = 0 ], 300)
+        await Motion.linear(fade_out, [ alpha = 0 ], RABBIT.fade)
     }
 }
 
-pico.layer.text(nil, :start_game,   25, "start the game")
-pico.layer.text(nil, :title,        30, "I Hate Rabbits!")
+pico.layer.text [ key=:start_game, dim=[ '!', h=25 ], text="start the game" ]
+pico.layer.text [ key=:title, dim=[ '!', h=30 ], text="I Hate Rabbits!" ]
 task Menu (){
-	val start_rect1 = [ '%', x = 0.5, y = 0.475, h = 0.045 ]
-	val start_rect2 = [ '%', x = 0.5, y = 0.525, h = 0.045 ]
+    val start_rect1 = [ '%', x = 0.5, y = 0.475, h = PULSE.h0 ]
+    val start_rect2 = [ '%', x = 0.5, y = 0.525, h = PULSE.h0 ]
 
     par:any{
         loop{
-            await Motion.lerp(start_rect1, [ h = 0.055 ], 300)
-            await Motion.lerp(start_rect1, [ h = 0.050 ], 300)
+            await Motion.linear(start_rect1, [ h = PULSE.big ], PULSE.time)
+            await Motion.linear(start_rect1, [ h = PULSE.small ], PULSE.time)
         }
     } with {
         loop{
-            await Motion.lerp(start_rect2, [ h = 0.055 ], 300)
-            await Motion.lerp(start_rect2, [ h = 0.050 ], 300)
+            await Motion.linear(start_rect2, [ h = PULSE.big ], PULSE.time)
+            await Motion.linear(start_rect2, [ h = PULSE.small ], PULSE.time)
         }
     } with {
         val title_rect = [ '%', x = 0.5, y = 0.06 ]
@@ -158,25 +167,24 @@ task Menu (){
             pico.output.draw.layer(:save_hint, instructions_rect)
         }
     } with {
-        await (:key.dn [key=:Space] || :mouse.button.dn)
+        await <:key.dn [key=:Space] || :mouse.button.dn>
     }
 }
 
-pico.layer.text(nil, :restart_game, 20, "restart the game")
+pico.layer.text [ key=:restart_game, dim=[ '!', h=20 ], text="restart the game" ]
 task End (score){
     val score_rect = [ '%', x = 0.5, y = 0.06]
     val best_score_rect = [ '%', x = 0.5, y = 0.125 ]
     val start_rect1 = [ '%', x = 0.5, y = 0.475 ]
     val start_rect2 = [ '%', x = 0.5, y = 0.525 ]
     val fade_in = [ alpha = 10 ]
-    
-    pico.push()
+
     pico.output.sound("media/yeah.mp3")
-    pico.layer.text(nil, :score_label,   30, "you saved_" ++ score ++ "_rabbits")
-    pico.layer.text(nil, :best_label,   20, "best score: " ++ best_score)
+    pico.layer.text [ key=:score_label, dim=[ '!', h=30 ], text="you saved_" ++ score ++ "_rabbits" ]
+    pico.layer.text [ key=:best_label, dim=[ '!', h=20 ], text="best score: " ++ best_score ]
     par:any{
         par{
-            await Motion.lerp(fade_in, [ alpha = 255 ], 1000)
+            await Motion.linear(fade_in, [ alpha = 255 ], END_FADE)
         } with {
             loop on :draw{
                 pico.set.layer(:circle)
@@ -190,7 +198,7 @@ task End (score){
                 pico.set.layer(:best_label)
                 pico.set.effect [ alpha = math.floor(fade_in.alpha) ]
                 pico.set.layer(:world)
-                
+
                 pico.output.draw.layer(:circle, [ '%', x = 0.5, y = 0.5 ])
                 pico.output.draw.layer(:score_label, score_rect)
                 pico.output.draw.layer(:press_space, start_rect1)
@@ -199,14 +207,13 @@ task End (score){
             }
         }
     } with {
-        await (:key.dn [key=:Space] || :mouse.button.dn)
+        await <:key.dn [key=:Space] || :mouse.button.dn>
     }
-    pico.pop()
 }
 
 task Play(){
     pico.output.sound("media/music.wav")
-    var score = 65  ;; start with 65 points and lose 1 per hit
+    var score = SCORE_START  ;; start with 65 points and lose 1 per hit
     pin bad = spawn Bad()
 
     spawn{
@@ -214,7 +221,7 @@ task Play(){
         val fade = [ alpha = 255 ]
         par{
             await until (bad.pub.angle >= 360)
-            await Motion.lerp(fade, [ alpha = 0 ], 300)
+            await Motion.linear(fade, [ alpha = 0 ], HINT_FADE)
         } with {
             loop on :draw{
                 pico.set.layer(:save_hint)
@@ -225,7 +232,7 @@ task Play(){
             }
         }
     }
-    
+
     pin rabbits = tasks()
     loop i in #map {
         par:any{
@@ -233,28 +240,21 @@ task Play(){
             val level_number = (#map - i) + 1
 
             loop j in #row {
-                if row@j == 1 => spawn @rabbits Rabbit(((j-1)*18)+90)
+                if row@j == 1 => spawn @rabbits Rabbit(((j-1)*RABBIT.gap)+90)
             }
 
             par{
                 val level_rect = [ '%', x = 0.5, y = 0.5, h = 0.18 ]
                 loop on :draw{
-                    pico.output.draw.text(level_number, level_rect)
+                    pico.output.draw.text.dyn("/level_rect", level_number, level_rect)
                 }
             } with {
                 loop _, rab in rabbits{
                     watching (rab){ ;; drops a rabbit that died mid-wait
-                        await (:key.dn [key=:Space] || :mouse.button.dn)
+                        await <:key.dn [key=:Space] || :mouse.button.dn>
                         emit @rab :jump
-                        val r = math.random(5)
-                        val source = ifs{
-                            r == 1 => "media/a.mp3"
-                            r == 2 => "media/e.mp3"
-                            r == 3 => "media/i.mp3"
-                            r == 4 => "media/o.mp3"
-                            else => "media/u.mp3"
-                        }
-                        pico.output.sound(source)
+                        val pick_sound = VOWELS_SOURCE@(math.random(#VOWELS_SOURCE))
+                        pico.output.sound(pick_sound)
                     }
                 }
             } with {
@@ -273,12 +273,14 @@ task Play(){
             emit @rabbits :next
         }
     }
-    score 
+    score
 }
 
 await Menu()
 loop{
+    pico.push()
     val score = await Play()
     set best_score = if score > best_score => score => best_score
     await End(score)
+    pico.pop()
 }

@@ -1,0 +1,44 @@
+val pico = require "pico"
+val Motion = require "motion"
+
+pico.layer.text [ key=:restart_game, dim=[ '!', h=20 ], text="restart the game" ]
+task End (score){
+    val score_rect = [ '%', x = 0.5, y = 0.06]
+    val best_score_rect = [ '%', x = 0.5, y = 0.125 ]
+    val start_rect1 = [ '%', x = 0.5, y = 0.475 ]
+    val start_rect2 = [ '%', x = 0.5, y = 0.525 ]
+    val fade_in = [ alpha = 10 ]
+
+    pico.output.sound("media/yeah.mp3")
+    pico.layer.text [ key=:score_label, dim=[ '!', h=30 ], text="you saved_" ++ score ++ "_rabbits" ]
+    pico.layer.text [ key=:best_label, dim=[ '!', h=20 ], text="best score: " ++ best_score ]
+    par:any{
+        par{
+            await Motion.linear(fade_in, [ alpha = 255 ], END_FADE)
+        } with {
+            loop on :draw{
+                pico.set.layer(:circle)
+                pico.set.effect [ alpha = math.floor(fade_in.alpha) ]
+                pico.set.layer(:score_label)
+                pico.set.effect [ alpha = math.floor(fade_in.alpha) ]
+                pico.set.layer(:press_space)
+                pico.set.effect [ alpha = math.floor(fade_in.alpha) ]
+                pico.set.layer(:restart_game)
+                pico.set.effect [ alpha = math.floor(fade_in.alpha) ]
+                pico.set.layer(:best_label)
+                pico.set.effect [ alpha = math.floor(fade_in.alpha) ]
+                pico.set.layer(:world)
+
+                pico.output.draw.layer(:circle, [ '%', x = 0.5, y = 0.5 ])
+                pico.output.draw.layer(:score_label, score_rect)
+                pico.output.draw.layer(:press_space, start_rect1)
+                pico.output.draw.layer(:restart_game, start_rect2)
+                pico.output.draw.layer(:best_label, best_score_rect)
+            }
+        }
+    } with {
+        await <:key.dn [key=:Space] || :mouse.button.dn>
+    }
+}
+
+End

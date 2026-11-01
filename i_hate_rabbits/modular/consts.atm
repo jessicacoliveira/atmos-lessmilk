@@ -1,0 +1,8 @@
+set CIRCLE_RADIUS = 0.22
+set BAD = [ w = 0.08, h = 0.088, speed = 72, anim = 200ms ]
+set RABBIT = [ w = 0.04, h = 0.093, gap = 18, enter_dist = 0.3, enter = 300, jump_dist = 0.2, jump_up = 400, jump_down = 600, fade = 300 ]
+set PULSE = [ h0 = 0.045, big = 0.055, small = 0.050, time = 300 ]
+set VOWELS_SOURCE = [ "media/a.mp3", "media/e.mp3", "media/i.mp3", "media/o.mp3", "media/u.mp3" ]
+set HINT_FADE = 300
+set END_FADE = 1000
+set SCORE_START = 65

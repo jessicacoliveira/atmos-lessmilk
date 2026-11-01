@@ -1,0 +1,152 @@
+val pico = require "pico"
+val Motion = require "motion"
+val Penguin = require "penguin"
+val Coin    = require "coin"
+val Man     = require "man"
+
+task Shake (rect, i, t){
+    await Motion.linear(rect, [ x = i,  y = i  ], t)
+    await Motion.linear(rect, [ x = -i, y = -i ], t)
+    await Motion.linear(rect, [ x = 0,  y = 0  ], t)
+    set rect.x, rect.y = (0, 0)
+}
+
+pico.layer.text [ key=:hint_1, dim=[ '!', h=18 ], text="1- arrow keys to move" ]
+pico.layer.text [ key=:hint_2, dim=[ '!', h=18 ], text="2- take coins for score" ]
+pico.layer.text [ key=:hint_3, dim=[ '!', h=18 ], text="3- jump on penguins to kill" ]
+task Game (){
+    pin coins = tasks (1)
+    val scene = [ '!', x = 0, y = 0, w = WIN_W, h = WIN_H, anchor = 'NW' ]
+    var score, best_score = (0, 0)
+    pin effects = tasks()
+    pico.output.sound("media/music.wav")
+
+    spawn{
+        val fade_out = [ alpha = 255 ]
+
+        par:any{
+            par:all{
+                await until (score >= 1)    ;; 2- take coins for score
+            } with {
+                await :bounce               ;; 3- jump on penguins to kill"
+            }
+            await Motion.linear(fade_out, [ alpha = 0 ], HINT_FADE)
+        } with {
+            val txt_h1 = [ '%', x = 0.5, y = 0.35]
+            val txt_h2 = [ '%', x = 0.5, y = 0.41 ]
+            val txt_h3 = [ '%', x = 0.5, y = 0.47 ]
+            loop on :draw {
+                pico.set.layer(:hint_1)
+                pico.set.effect [ alpha = math.floor(fade_out.alpha) ]
+                pico.set.layer(:hint_2)
+                pico.set.effect [ alpha = math.floor(fade_out.alpha) ]
+                pico.set.layer(:hint_3)
+                pico.set.effect [ alpha = math.floor(fade_out.alpha) ]
+                pico.set.layer(:world)
+                pico.output.draw.layer(:hint_1, txt_h1)
+                pico.output.draw.layer(:hint_2, txt_h2)
+                pico.output.draw.layer(:hint_3, txt_h3)
+            }
+        }
+    }
+
+    loop{
+        pin enemies = tasks(PENGUIN.max)
+        pin player = spawn Man ()
+        set score = 0
+        val txt_best = [ '%', x = 0.15, y = 0.16, h = 0.05 ]
+
+        par:any{
+            var side = 1
+            loop {
+                spawn @enemies Penguin (side)
+                set side = side * (-1)
+                await ((SPAWN.base + (math.random(SPAWN.rand) - math.min((score*SPAWN.per_point), SPAWN.max_cut))) * 1ms)
+            }
+        } with {
+            val txt_score = [ '%', x = 0.15, y = 0.1, h = 0.05 ]
+            loop on :draw {
+                pico.set.layer(:actors)
+                pico.output.draw.text.dyn("/txt_score", "score: " ++ score, txt_score)
+                pico.output.draw.text.dyn("/txt_best", "best: " ++ best_score, txt_best)
+                pico.set.layer(:world)
+            }
+        } with {
+            val spots_1 = [ [0.32, 0.5], [0.64, 0.5], [0.08, 0.7], [0.88, 0.7] ]
+            val spots_2 = spots_1 ++ [ [0.12, 0.28], [0.84, 0.28] ]
+            val spots_3 = spots_2 ++ [ [0.32, 0.14], [0.64, 0.14], [0.36, 0.83], [0.60, 0.83] ]
+            val respawn_coin = [ spots_1, spots_2, spots_3 ]
+            var last = 1
+
+            spawn @coins Coin (spots_1@1@1, spots_1@1@2)
+            loop{
+                await until (#coins == 0)
+                val i = ifs{
+                    score <= 5  => 1
+                    score <= 10 => 2
+                    else        => 3
+                }
+                var pick = math.random(#(respawn_coin@i))
+                if pick == last => set pick = (pick % (#(respawn_coin@i))) + 1
+                set last = pick
+                val p = respawn_coin@i@pick
+                spawn @coins Coin (p@1, p@2)
+            }
+        } with {
+            loop on :clock {
+                val p = player.pub.rect
+
+                loop _, coin in coins {
+                    if pico.vs.rect.rect(p, coin.pub.rect) {
+                        emit @coin :hit
+                        set score = score + 1
+                        pico.output.sound("media/coin.wav")
+                    }
+                }
+            }
+        } with {
+            loop on :clock {
+                val p = player.pub.rect
+
+                loop _, pg in enemies {
+                    if pico.vs.rect.rect(p, pg.pub.rect) {
+                        val p_bottom = p.y + p.h
+                        val pg_top = pg.pub.rect.y
+                        if p_bottom < (pg_top + (STOMP_MARGIN/WIN_H)) {
+                            emit @pg :hit
+                            emit :bounce
+                            pico.output.sound("media/kill.wav")
+                            spawn @effects Shake(scene, SHAKE.kill, SHAKE.kill_time)
+                        } else {
+                            emit @enemies :hit
+                            emit @player :hit
+                        }
+                    }
+                }
+            }
+        } with {
+            loop on :draw {
+                pico.set.layer(:map)
+                pico.set.scene [ source = scene ]
+                pico.set.layer(:actors)
+                pico.set.scene [ source = scene ]
+                pico.set.layer(:world)
+            }
+        } with {
+            await (player)
+            pico.output.sound("media/dead.wav")
+            par:all{
+                await Shake(scene, SHAKE.dead, SHAKE.dead_time)
+            } with {
+                if score > best_score{
+                    set best_score = score
+                    val temp = txt_best.h
+                    set txt_best.h = (BEST_POP.scale * txt_best.h)
+                    await Motion.linear(txt_best, [ h = temp ], BEST_POP.time)
+                }
+            }
+        }
+    }
+}
+
+Game

@@ -1,4 +1,4 @@
-task Lerp (rect, target, duration){
+task Linear (rect, target, duration){
     val vel = []
     loop k, _ in target {
         set vel@k = (target@k - rect@k) / duration  ;; v = (pf - p0)/t
@@ -6,8 +6,9 @@ task Lerp (rect, target, duration){
     
     watching (duration * 1ms) {
         loop us on :clock {
+            val dt = us/1000
             loop k, _ in target{
-                set rect@k = rect@k + (vel@k * (us/1000))   ;; pos = pos + v*dt
+                set rect@k = rect@k + (vel@k * dt)   ;; pos = pos + v*dt
             }
         }
     }
@@ -16,5 +17,66 @@ task Lerp (rect, target, duration){
     }
 }
 
-val Motion = [ lerp = Lerp ]
+task Accelerate (rect, target, duration){
+    val acc, vel =([], [])
+    loop k, _ in target {
+        set acc@k = (2 * (target@k - rect@k)) / (duration * duration) ;; a = 2(pf - p0)/t²
+        set vel@k = 0   ;; v = 0
+    }
+    
+    watching (duration * 1ms) {
+        loop us on :clock {
+            val dt = us/1000
+            loop k, _ in target{
+                set rect@k = rect@k + (vel@k * dt) + (((acc@k * dt) * dt) / 2)  ;; pos = pos + v*dt + a*dt²/2
+                set vel@k = vel@k + (acc@k * dt)    ;; v = v + a*dt
+            }
+        }
+    }
+    loop k, v in target {
+        set rect@k = v
+    }
+}
+
+task Decelerate (rect, target, duration){
+    val acc, vel =([], [])
+    loop k, _ in target {
+        set acc@k = -(2 * (target@k - rect@k)) / (duration * duration) ;; a = -2(pf - p0)/t²
+        set vel@k = (2 * (target@k - rect@k)) / duration   ;; v = 2(pf - p0)/t
+    }
+    
+    watching (duration * 1ms) {
+        loop us on :clock {
+            val dt = us/1000
+            loop k, _ in target{
+                set rect@k = rect@k + (vel@k * dt) + (((acc@k * dt) * dt) / 2)  ;; pos = pos + v*dt + a*dt²/2
+                set vel@k = vel@k + (acc@k * dt)    ;; v = v + a*dt
+            }
+        }
+    }
+    loop k, v in target {
+        set rect@k = v
+    }
+}
+
+task Bounce_End (rect, target, duration){
+    val start = []
+    loop k, _ in target {
+        set start@k = rect@k
+    }
+
+    var t, h = (duration / 2.75, 1/4)
+    await Accelerate(rect, target, t)
+    loop _ in 3 {
+        val peak = []
+        loop k, _ in target {
+            set peak@k = target@k + (h * (start@k - target@k))
+        }
+        await Decelerate(rect, peak, t/2)
+        await Accelerate(rect, target, t/2)
+        set t, h = (t/2, h/4)
+    }
+}
+
+val Motion = [ linear = Linear, accelerate = Accelerate, decelerate = Decelerate, bounce_end = Bounce_End]
 Motion

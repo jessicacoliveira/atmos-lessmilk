@@ -1,0 +1,140 @@
+val pico   = require "pico"
+val Motion = require "motion"
+val Letter = require "letter"
+val Bomb   = require "bomb"
+
+val sentences = [
+    "type this sentence to start",
+    "great now keep typing",
+    "save the city from the bomb",
+    "the city is being evacuated right now",
+    "so each keystroke is saving lives",
+    "oh we have zome kommuncation ichues",
+    "can yu styll haer us",
+    "ze bomb iz cosyng interrrfrances",
+    "kip tyipng ur diong a good zob",
+    "yuo svaed allmoost eevrinoe",
+    "quysd skjlij qsiap apzokh z",
+    "faondzakjazhedluyedanljlcquef lol",
+    "- you are not supposed to see this -",
+    " - are you a hacker? - ",
+]
+
+set city = pico.layer.images [ mode='!', key=:city, path="media/city.png", sheet=[ '#', w = 1, h = 2 ] ]
+pico.layer.image [ mode='!', key=:explosion, path="media/explosion.png" ]
+task Play(){
+    var score = 0
+    var current_sentence = 1
+
+    ;; instructions
+    spawn{
+        val fade_out = [ alpha = 255 ]
+        par:any {
+            await until (current_sentence == 1)
+            val first_letter = string.byte(string.sub(string.upper(sentences@current_sentence),1,1))
+            await :key.dn until (string.byte(string.upper(it.key)) == first_letter)
+            await Motion.linear(fade_out, [ alpha = 0 ], INSTRUCTIONS_FADE)
+        } with {
+            pico.layer.text [ key=:instruction1, dim=[ '!', h=25 ], text="use your keyboad" ]
+            pico.layer.text [ key=:instruction2, dim=[ '!', h=25 ], text="to type the sentence below" ]
+
+            loop on :draw {
+                pico.set.layer(:instruction1)
+                pico.set.effect [ alpha = math.floor(fade_out.alpha) ]
+                pico.set.layer(:instruction2)
+                pico.set.effect [ alpha = math.floor(fade_out.alpha) ]
+                pico.set.layer(:world)
+                pico.output.draw.layer(:instruction1, [ '%', x = 0.5, y = 0.3 ])
+                pico.output.draw.layer(:instruction2, [ '%', x = 0.5, y = 0.35 ])
+            }
+        }
+    }
+
+    ;;bg
+    val city_rect = [ '%', x = 0.5, y = CITY.y, w = CITY.w, h = CITY.h ]
+    spawn{
+        loop on :draw {
+            pico.output.draw.layer(city@SAFE_CITY, city_rect)
+        }
+    }
+
+    ;;gameplay
+    pin bomb = spawn Bomb()
+    pin all_letters = tasks()
+    par:any{
+        loop i in #sentences{
+            val frase = []
+            var teste = sentences@current_sentence
+            val sentence_tam = #(sentences@current_sentence)
+            val sentence_up = string.upper(teste)
+            val start_x = 0.5 - ((sentence_tam * LETTER.spacing)/2)
+
+            loop j in sentence_tam {
+                val letter_teste = string.sub(teste,j,j)
+                val letter = string.sub(sentence_up,j,j)
+                if letter != " " {
+                    val let = spawn @all_letters Letter (letter_teste, j, (start_x + ((j-1)*LETTER.spacing)), i)
+                    set frase@+ = let
+                }
+            }
+            if current_sentence == 2 => emit @bomb :start
+
+            par:any {
+                loop _, letra in frase {
+                    val l = string.upper(letra.pub.letter)
+                    await :key.dn until (string.upper(it.key) == l)
+                    emit @letra (:typed [bomb.pub.rect])
+                    set score = score + SCORE_LETTER
+                }
+                set current_sentence = current_sentence + 1
+            } with {
+                loop on :clock{
+                    loop _, letra in all_letters {
+                        await until (pico.vs.rect.rect(letra.pub.rect, bomb.pub.rect))
+                        emit @bomb :hit
+                        emit @letra :hit
+                    }
+                }
+            }
+        }
+
+    } with{
+        await until (pico.vs.rect.rect(city_rect, bomb.pub.rect))
+        emit @bomb :kill
+        emit @all_letters :hit
+        pico.output.sound("media/exp.wav")
+    }
+
+    ;;final animation
+    val explosion_rect = [ '%', x = 0.5, y = EXPLOSION.y, w = EXPLOSION.w0, h = EXPLOSION.h0, anchor = 'S' ]
+    val y_source = [ y = 0 ]
+
+    par:any {
+        par:all {
+            await Motion.linear(explosion_rect, [ w = EXPLOSION.w, h = EXPLOSION.h ], EXPLOSION.grow )
+        } with {
+            val move, time, y0 = (SHAKE.move, SHAKE.time, y_source.y)
+            await Motion.linear(y_source, [ y = y0 - move ], time )
+            await Motion.linear(y_source, [ y = y0 + (2*move) ], 2*time )
+            await Motion.linear(y_source, [ y = y0 - move ], time )
+            await Motion.linear(y_source, [ y = y0 - move ], time )
+            await Motion.linear(y_source, [ y = y0 + (2*move) ], 2*time )
+            await Motion.linear(y_source, [ y = y0 - move ], time )
+            await Motion.linear(y_source, [ y = y0 - (move/2) ], time )
+            await Motion.linear(y_source, [ y = y0 + (2*move) ], 2*time )
+            await Motion.linear(y_source, [ y = y0 - (move/2) ], time )
+            await Motion.linear(y_source, [ y = y0 ], time )
+        }
+    } with {
+        loop on :clock {
+            pico.set.scene [ source = [ '!', x = 0, y = y_source.y, w = WIN_W, h = WIN_H, anchor = 'NW' ] ]
+        }
+    } with {
+        loop on :draw {
+            pico.output.draw.layer(:explosion, explosion_rect)
+        }
+    }
+    score
+}
+
+Play

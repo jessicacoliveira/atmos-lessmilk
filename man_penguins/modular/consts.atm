@@ -1,0 +1,9 @@
+set MAN = [ w = 0.055, h = 0.09, speed = 160, jump = -430, gravity = 900, jump_buffer = 120ms, jump_cut = 0.4, anim = 120ms, fall = 400, spin = 500 ]
+set PENGUIN = [ w = 0.035, h = 0.075, speed = 90, gravity = 900, anim = 150ms, squash = 150, max = 40 ]
+set COIN = [ w = 0.035, h = 0.065, gravity = 700, bounce = 0.5 ]
+set SPAWN = [ base = 2000, rand = 500, per_point = 20, max_cut = 1000 ]
+set SHAKE = [ kill = 4, kill_time = 50, dead = 10, dead_time = 100 ]
+set MENU = [ angle = 3, time = 1000 ]
+set BEST_POP = [ scale = 2, time = 300 ]
+set STOMP_MARGIN = 20
+set HINT_FADE = 1000

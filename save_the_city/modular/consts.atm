@@ -1,0 +1,9 @@
+set SAFE_CITY, DEAD_CITY = (1,2)
+set LETTER = [ spacing = 0.026, y = 0.95, h = 0.04, delay = 20, fade = 200, flight = 3 ]
+set BOMB = [ y = -0.04, w = 0.088, h = 0.144, speed = 0.18, push = 0.04, push_time = 50 ]
+set CITY = [ y = 0.85, w = 0.8, h = 0.096 ]
+set EXPLOSION = [ y = 0.9, w0 = 0.24, h0 = 0.011, w = 0.8, h = 0.38, grow = 700, fade_delay = 1500ms, fade = 2000 ]
+set SHAKE = [ move = 15, time = 70 ]
+set END = [ score_delay = 1500ms, score_fade = 1000, restart_delay = 2s, restart_fade = 1000 ]
+set INSTRUCTIONS_FADE = 500
+set SCORE_LETTER = 5

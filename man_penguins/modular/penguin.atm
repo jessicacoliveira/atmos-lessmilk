@@ -1,0 +1,58 @@
+val pico = require "pico"
+val Motion = require "motion"
+val map = require "map"
+
+val pen = pico.layer.images [ mode='!', key=:penguin, path="media/enemy.png", sheet=[ '#', w = 2, h = 1 ] ]
+task Penguin (dir0){
+    val rect = [ '%', x = 0.5, y = 0, w = PENGUIN.w, h = PENGUIN.h, anchor = 'NW' ]
+    set pub = [
+        rect = rect
+    ]
+
+    val vx, gravity = (PENGUIN.speed/WIN_W, PENGUIN.gravity/WIN_H)
+    var vy, dir = (0 , dir0)
+    var frame = 1
+
+    par:any {
+        loop us on :clock {
+            val dt = us / 1s
+
+            set vy = vy + (gravity * dt)
+            val new_y = rect.y + (vy * dt)
+            if hit(map, rect.x, new_y, rect.w, rect.h, BRICK) => set vy = 0 => set rect.y = new_y
+        }
+    } with {
+        await until (grounded(rect))
+        loop us on :clock {
+            val dt = us / 1s
+
+            val new_x = rect.x + ((vx * dir) * dt)
+            if hit(map, new_x, rect.y, rect.w, rect.h, BRICK) || (new_x <= 0) || (new_x >= (1 - rect.w)) {
+                set dir = dir * (-1)
+            } else {
+                set rect.x = new_x
+            }
+        }
+    } with {
+        await until (grounded(rect))
+        loop on (PENGUIN.anim) {
+            set frame = (frame % 2) + 1
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(pen@frame)
+            val flip_var = if dir > 0 => "horizontal" => "none"
+            pico.set.effect [ flip = flip_var ]
+            pico.set.layer(:actors)
+            pico.output.draw.layer(pen@frame, rect)
+            pico.set.layer(:world)
+        }
+    } with {
+        await until (rect.y > 1)
+    } with {
+        await :hit
+        await Motion.linear(rect, [ y = rect.y + rect.h, h = 0.005 ], PENGUIN.squash)
+    }
+}
+
+Penguin

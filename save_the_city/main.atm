@@ -11,6 +11,15 @@ pico.set.dim [ '!', w = WIN_W, h = WIN_H ]
 pico.set.effect [ color = [ r=230, g=126, b=34 ] ]
 pico.set.pencil [ color = :white, font = "media/Courier.ttf" ]
 
+val LETTER = [ spacing = 0.026, y = 0.95, h = 0.04, delay = 20, fade = 200, flight = 3 ]
+val BOMB = [ y = -0.04, w = 0.088, h = 0.144, speed = 0.18, push = 0.04, push_time = 50 ]
+val CITY = [ y = 0.85, w = 0.8, h = 0.096 ]
+val EXPLOSION = [ y = 0.9, w0 = 0.24, h0 = 0.011, w = 0.8, h = 0.38, grow = 700, fade_delay = 1500ms, fade = 2000 ]
+val SHAKE = [ move = 15, time = 70 ]
+val END = [ score_delay = 1500ms, score_fade = 1000, restart_delay = 2s, restart_fade = 1000 ]
+val INSTRUCTIONS_FADE = 500
+val SCORE_LETTER = 5
+
 val sentences = [
     "type this sentence to start",
     "great now keep typing",
@@ -28,48 +37,46 @@ val sentences = [
     " - are you a hacker? - ",
 ]
 
-val spacing = 0.026
 task Letter (charac, pos_sentence, x0, num_sentence){
     val key = "char_" ++ pos_sentence ++ "_" ++ num_sentence
-	val char_rect = [ '%', x = x0, y = 0.95, w = spacing, h = 0.04 ]
-	var fade = [ alpha = 0 ]
+    val char_rect = [ '%', x = x0, y = LETTER.y, w = LETTER.spacing, h = LETTER.h ]
+    var fade = [ alpha = 0 ]
 
-	set pub = [
-		letter = charac,
-		rect = char_rect
-	]
-	spawn{
-		val delay = (pos_sentence - 1) * 20
-		await (delay * 1ms)
-		await Motion.lerp (fade, [ alpha = 255 ], 200)
+    set pub = [
+        letter = charac,
+        rect = char_rect
+    ]
+    spawn{
+        val delay = (pos_sentence - 1) * LETTER.delay
+        await (delay * 1ms)
+        await Motion.linear (fade, [ alpha = 255 ], LETTER.fade)
     }
-    
-    pico.layer.text (nil, key, 20, charac)
-	par:any {
-		val evt = await :typed
-		val bomb_pos = evt@1
-		pico.output.sound("media/fire.wav")
-		val lenght = (char_rect.y - bomb_pos.y)*WIN_H
-		
-	    await Motion.lerp(char_rect, [ x = bomb_pos.x, y = bomb_pos.y ], lenght*3)
-		
-	} with {
-		loop on :draw {
-		    pico.push()
-			pico.set.layer(key)
-			pico.set.effect [ alpha = math.floor(fade.alpha) ]
-			pico.set.layer(:world)
-			pico.output.draw.layer(key, char_rect)
-			pico.pop()
-		}
-	} with {
-		await :hit
-	}
+
+    pico.layer.text [ key=key, dim=[ '!', h=20 ], text=charac ]
+    par:any {
+        val evt = await :typed
+        val bomb_pos = evt@1
+        pico.output.sound("media/fire.wav")
+        val lenght = (char_rect.y - bomb_pos.y)*WIN_H
+
+        await Motion.linear(char_rect, [ x = bomb_pos.x, y = bomb_pos.y ], lenght*LETTER.flight)
+
+    } with {
+        loop on :draw {
+            pico.push()
+            pico.set.layer(key)
+            pico.set.effect [ alpha = math.floor(fade.alpha) ]
+            pico.set.layer(:world)
+            pico.output.draw.layer(key, char_rect)
+            pico.pop()
+        }
+    } with {
+        await :hit
+    }
 }
 
 task Bomb (){
-    val bomb_rect = [ '%', x = 0.5, y = -0.04, w = 0.088, h = 0.144 ]
-    val vel_y = 0.18
+    val bomb_rect = [ '%', x = 0.5, y = BOMB.y, w = BOMB.w, h = BOMB.h ]
 
     set pub = [
         rect = bomb_rect
@@ -77,15 +84,14 @@ task Bomb (){
 
     await :start
     par:any{
-        ;; body.velocity.y = 90 (90 pixels/s)
         loop us on :clock {
-            val dt = us / 1000000.0
-            set bomb_rect.y = bomb_rect.y + (vel_y*dt)
+            val dt = us / 1s
+            set bomb_rect.y = bomb_rect.y + (BOMB.speed*dt)
         }
     } with {
         loop on :hit {
             pico.output.sound("media/hit.wav")
-            await Motion.lerp(bomb_rect, [ y = bomb_rect.y - 0.04 ], 50 )
+            await Motion.linear(bomb_rect, [ y = bomb_rect.y - BOMB.push ], BOMB.push_time )
         }
     } with {
         loop on :draw {
@@ -96,44 +102,44 @@ task Bomb (){
     }
 }
 
-val city = pico.layer.images('!', nil, :city, "media/city.png", [ '#', w = 1, h = 2 ])
-pico.layer.image ('!', nil, :explosion, "media/explosion.png")
+val city = pico.layer.images [ mode='!', key=:city, path="media/city.png", sheet=[ '#', w = 1, h = 2 ] ]
+pico.layer.image [ mode='!', key=:explosion, path="media/explosion.png" ]
 task Play(){
     var score = 0
     var current_sentence = 1
 
-	;; instructions
+    ;; instructions
     spawn{
         val fade_out = [ alpha = 255 ]
         par:any {
             await until (current_sentence == 1)
             val first_letter = string.byte(string.sub(string.upper(sentences@current_sentence),1,1))
             await :key.dn until (string.byte(string.upper(it.key)) == first_letter)
-            await Motion.lerp(fade_out, [ alpha = 0 ], 500)
+            await Motion.linear(fade_out, [ alpha = 0 ], INSTRUCTIONS_FADE)
         } with {
-            pico.layer.text (nil, :instruction1, 25, "use your keyboad")
-            pico.layer.text (nil, :instruction2, 25, "to type the sentence below")
-            
+            pico.layer.text [ key=:instruction1, dim=[ '!', h=25 ], text="use your keyboad" ]
+            pico.layer.text [ key=:instruction2, dim=[ '!', h=25 ], text="to type the sentence below" ]
+
             loop on :draw {
                 pico.set.layer(:instruction1)
                 pico.set.effect [ alpha = math.floor(fade_out.alpha) ]
                 pico.set.layer(:instruction2)
                 pico.set.effect [ alpha = math.floor(fade_out.alpha) ]
                 pico.set.layer(:world)
-			    pico.output.draw.layer(:instruction1, [ '%', x = 0.5, y = 0.3 ])
-			    pico.output.draw.layer(:instruction2, [ '%', x = 0.5, y = 0.35 ])
+                pico.output.draw.layer(:instruction1, [ '%', x = 0.5, y = 0.3 ])
+                pico.output.draw.layer(:instruction2, [ '%', x = 0.5, y = 0.35 ])
             }
         }
     }
 
     ;;bg
-    val city_rect = [ '%', x = 0.5, y = 0.85, w = 0.8, h = 0.096 ]
+    val city_rect = [ '%', x = 0.5, y = CITY.y, w = CITY.w, h = CITY.h ]
     spawn{
         loop on :draw {
             pico.output.draw.layer(city@SAFE_CITY, city_rect)
         }
     }
-    
+
     ;;gameplay
     pin bomb = spawn Bomb()
     pin all_letters = tasks()
@@ -143,24 +149,24 @@ task Play(){
             var teste = sentences@current_sentence
             val sentence_tam = #(sentences@current_sentence)
             val sentence_up = string.upper(teste)
-            val start_x = 0.5 - ((sentence_tam * spacing)/2)
+            val start_x = 0.5 - ((sentence_tam * LETTER.spacing)/2)
 
             loop j in sentence_tam {
                 val letter_teste = string.sub(teste,j,j)
                 val letter = string.sub(sentence_up,j,j)
                 if letter != " " {
-                    val let = spawn @all_letters Letter (letter_teste, j, (start_x + ((j-1)*spacing)), i)
+                    val let = spawn @all_letters Letter (letter_teste, j, (start_x + ((j-1)*LETTER.spacing)), i)
                     set frase@+ = let
                 }
             }
             if current_sentence == 2 => emit @bomb :start
-            
+
             par:any {
                 loop _, letra in frase {
                     val l = string.upper(letra.pub.letter)
                     await :key.dn until (string.upper(it.key) == l)
                     emit @letra (:typed [bomb.pub.rect])
-                    set score = score + 5
+                    set score = score + SCORE_LETTER
                 }
                 set current_sentence = current_sentence + 1
             } with {
@@ -173,7 +179,7 @@ task Play(){
                 }
             }
         }
-        
+
     } with{
         await until (pico.vs.rect.rect(city_rect, bomb.pub.rect))
         emit @bomb :kill
@@ -182,24 +188,24 @@ task Play(){
     }
 
     ;;final animation
-    val explosion_rect = [ '%', x = 0.5, y = 0.9, w = 0.24, h = 0.011, anchor = 'S' ]
+    val explosion_rect = [ '%', x = 0.5, y = EXPLOSION.y, w = EXPLOSION.w0, h = EXPLOSION.h0, anchor = 'S' ]
     val y_source = [ y = 0 ]
-    
+
     par:any {
         par:all {
-            await Motion.lerp(explosion_rect, [ w = 0.8, h = 0.38 ], 700 )
+            await Motion.linear(explosion_rect, [ w = EXPLOSION.w, h = EXPLOSION.h ], EXPLOSION.grow )
         } with {
-            val move, time, y0 = (15, 70, y_source.y)
-            await Motion.lerp(y_source, [ y = y0 - move ], time )
-            await Motion.lerp(y_source, [ y = y0 + (2*move) ], 2*time )
-            await Motion.lerp(y_source, [ y = y0 - move ], time )
-            await Motion.lerp(y_source, [ y = y0 - move ], time )
-            await Motion.lerp(y_source, [ y = y0 + (2*move) ], 2*time )
-            await Motion.lerp(y_source, [ y = y0 - move ], time )
-            await Motion.lerp(y_source, [ y = y0 - (move/2) ], time )
-            await Motion.lerp(y_source, [ y = y0 + (2*move) ], 2*time )
-            await Motion.lerp(y_source, [ y = y0 - (move/2) ], time )
-            await Motion.lerp(y_source, [ y = y0 ], time )
+            val move, time, y0 = (SHAKE.move, SHAKE.time, y_source.y)
+            await Motion.linear(y_source, [ y = y0 - move ], time )
+            await Motion.linear(y_source, [ y = y0 + (2*move) ], 2*time )
+            await Motion.linear(y_source, [ y = y0 - move ], time )
+            await Motion.linear(y_source, [ y = y0 - move ], time )
+            await Motion.linear(y_source, [ y = y0 + (2*move) ], 2*time )
+            await Motion.linear(y_source, [ y = y0 - move ], time )
+            await Motion.linear(y_source, [ y = y0 - (move/2) ], time )
+            await Motion.linear(y_source, [ y = y0 + (2*move) ], 2*time )
+            await Motion.linear(y_source, [ y = y0 - (move/2) ], time )
+            await Motion.linear(y_source, [ y = y0 ], time )
         }
     } with {
         loop on :clock {
@@ -218,26 +224,26 @@ task End (score){
     val fade_in_score = [ alpha = 0 ]
     val fade_out_explosion = [ alpha = 255 ]
     val fade_in_restart = [ alpha = 0 ]
-    
+
     par:any{
         await :mouse.button.dn until (pico.vs.pos.rect(it, restart_rect))
     } with {
         par{
-            await 1500ms
-            await Motion.lerp(fade_out_explosion, [ alpha = 0 ], 2000 )
+            await (EXPLOSION.fade_delay)
+            await Motion.linear(fade_out_explosion, [ alpha = 0 ], EXPLOSION.fade )
         } with {
-            await 2s
-            await Motion.lerp(fade_in_restart, [ alpha = 255 ], 1000)
+            await (END.restart_delay)
+            await Motion.linear(fade_in_restart, [ alpha = 255 ], END.restart_fade)
         } with {
-            await 1500ms
-            await Motion.lerp(fade_in_score, [ alpha = 255 ], 1000)
+            await (END.score_delay)
+            await Motion.linear(fade_in_score, [ alpha = 255 ], END.score_fade)
         } with {
-            pico.layer.image ('!', nil, :restart, "media/restart.png")
-            pico.layer.text (nil, :score_label, 18, "the city is gone. you saved_" ++ score ++ "_lives")
-            val city_rect = [ '%', x = 0.5, y = 0.85, w = 0.8, h = 0.096 ]
-            val explosion_rect = [ '%', x = 0.5, y = 0.9, w = 0.8, h = 0.38, anchor = 'S' ]
+            pico.layer.image [ mode='!', key=:restart, path="media/restart.png" ]
+            pico.layer.text [ key=:score_label, dim=[ '!', h=18 ], text="the city is gone. you saved_" ++ score ++ "_lives" ]
+            val city_rect = [ '%', x = 0.5, y = CITY.y, w = CITY.w, h = CITY.h ]
+            val explosion_rect = [ '%', x = 0.5, y = EXPLOSION.y, w = EXPLOSION.w, h = EXPLOSION.h, anchor = 'S' ]
             val score_rect = [ '%', x = 0.5, y = 0.2 ]
-            
+
             loop on :draw {
                 pico.set.layer(:explosion)
                 pico.set.effect [ alpha = math.floor(fade_out_explosion.alpha) ]
@@ -253,16 +259,16 @@ task End (score){
             }
         }
     }
-    
+
     ;;;
     :explosion is a shared layer (created once) between Play() and End().
     End() fades its alpha to 0, so we must reset it here before the next loop iteration.
     ;;;
-    
+
     pico.set.layer(:explosion)
     pico.set.effect [ alpha = 255 ]
     pico.set.layer(:world)
-    
+
 }
 
 loop{

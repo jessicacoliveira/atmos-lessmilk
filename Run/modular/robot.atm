@@ -25,7 +25,7 @@ task Robot (){
             val k = evt.key
             watching :key.up [key=evt.key] {
                 loop us on :clock {
-                    val ds = (ROBOT.speed * us) / 1000000.0
+                    val ds = (ROBOT.speed * us) / 1s
                     match k {
                         :Left  => set robot_rect.x = check_lim ((robot_rect.w/2), 1 - (robot_rect.w/2), robot_rect.x - ds)
                         :Right => set robot_rect.x = check_lim ((robot_rect.w/2), 1 - (robot_rect.w/2), robot_rect.x + ds)

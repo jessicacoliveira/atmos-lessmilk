@@ -1,0 +1,57 @@
+val pico = require "pico"
+val Motion = require "motion"
+
+task End (score){
+    set CITY_FRAME = DEAD_CITY
+    val restart_rect = [ '%', x = 0.5, y = 0.4, w = 0.3, h = 0.08 ]
+    val fade_in_score = [ alpha = 0 ]
+    val fade_out_explosion = [ alpha = 255 ]
+    val fade_in_restart = [ alpha = 0 ]
+
+    par:any{
+        await :mouse.button.dn until (pico.vs.pos.rect(it, restart_rect))
+    } with {
+        par{
+            await (EXPLOSION.fade_delay)
+            await Motion.linear(fade_out_explosion, [ alpha = 0 ], EXPLOSION.fade )
+        } with {
+            await (END.restart_delay)
+            await Motion.linear(fade_in_restart, [ alpha = 255 ], END.restart_fade)
+        } with {
+            await (END.score_delay)
+            await Motion.linear(fade_in_score, [ alpha = 255 ], END.score_fade)
+        } with {
+            pico.layer.image [ mode='!', key=:restart, path="media/restart.png" ]
+            pico.layer.text [ key=:score_label, dim=[ '!', h=18 ], text="the city is gone. you saved_" ++ score ++ "_lives" ]
+            val city_rect = [ '%', x = 0.5, y = CITY.y, w = CITY.w, h = CITY.h ]
+            val explosion_rect = [ '%', x = 0.5, y = EXPLOSION.y, w = EXPLOSION.w, h = EXPLOSION.h, anchor = 'S' ]
+            val score_rect = [ '%', x = 0.5, y = 0.2 ]
+
+            loop on :draw {
+                pico.set.layer(:explosion)
+                pico.set.effect [ alpha = math.floor(fade_out_explosion.alpha) ]
+                pico.set.layer(:restart)
+                pico.set.effect [ alpha = math.floor(fade_in_restart.alpha) ]
+                pico.set.layer(:score_label)
+                pico.set.effect [ alpha = math.floor(fade_in_score.alpha) ]
+                pico.set.layer(:world)
+                pico.output.draw.layer(:restart, restart_rect)
+                pico.output.draw.layer(:explosion, explosion_rect)
+                pico.output.draw.layer(city@DEAD_CITY, city_rect)
+                pico.output.draw.layer(:score_label, score_rect)
+            }
+        }
+    }
+
+    ;;;
+    :explosion is a shared layer (created once) between Play() and End().
+    End() fades its alpha to 0, so we must reset it here before the next loop iteration.
+    ;;;
+
+    pico.set.layer(:explosion)
+    pico.set.effect [ alpha = 255 ]
+    pico.set.layer(:world)
+
+}
+
+End

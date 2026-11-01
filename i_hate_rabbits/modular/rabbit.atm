@@ -1,0 +1,63 @@
+val pico = require "pico"
+val Motion = require "motion"
+
+pico.layer.image [ mode='!', key=:alive, path="media/rabbit2.png" ]
+pico.layer.image [ mode='!', key=:dead, path="media/rabbit2.png" ]
+task Rabbit (angle0){
+    val a, radius, h_rabbit = (math.rad(angle0 - 90), CIRCLE_RADIUS, RABBIT.h)
+    val rabbit_rect = [ '%', x = x, y = y, w = RABBIT.w, h = h_rabbit ] where {
+        r = radius + h_rabbit
+        x = 0.5 + (r * math.cos(a))
+        y = 0.5 + (r * math.sin(a))
+    }
+    set pub = [
+        rect = rabbit_rect,
+        angle = angle0,
+        live = true
+    ]
+
+    ;; rabbit's distance from center
+    val delta_radius = [ r = 0.5 ]
+    val fade_out = [ alpha = 255 ]
+
+    par:any {
+        ;; slide from offscreen
+        val initial_distance = RABBIT.enter_dist
+        val r_0 = radius + rabbit_rect.h + initial_distance
+        val r_final = r_0 - initial_distance
+
+        set delta_radius.r = r_0
+        await Motion.linear(delta_radius, [ r = r_final ], RABBIT.enter)
+
+        val jump_distance = RABBIT.jump_dist
+        val r_1 = radius + rabbit_rect.h
+        val r_final1 = r_1 + jump_distance
+        loop on :jump{
+            await Motion.linear(delta_radius, [ r = r_final1 ], RABBIT.jump_up)
+            await Motion.linear(delta_radius, [ r = r_1 ], RABBIT.jump_down)
+        }
+    } with {
+        loop on :clock{
+            set rabbit_rect.x = 0.5 + (delta_radius.r * math.cos(a))
+            set rabbit_rect.y = 0.5 + (delta_radius.r * math.sin(a))
+        }
+    } with {
+        loop on :draw{
+            pico.set.layer(:alive)
+            pico.set.effect [ rotate = [ angle = math.floor(angle0), anchor = 'C' ] ]
+            pico.set.layer(:dead)
+            pico.set.effect [ alpha = math.floor(fade_out.alpha), rotate = [ angle = math.floor(angle0), anchor = 'C' ] ]
+            pico.set.layer(:world)
+            if pub.live => pico.output.draw.layer(:alive, rabbit_rect) => pico.output.draw.layer(:dead, rabbit_rect)
+        }
+    } with {
+        await :collided
+        set pub.live = false
+    } with {
+        await :next
+        set pub.live = false
+        await Motion.linear(fade_out, [ alpha = 0 ], RABBIT.fade)
+    }
+}
+
+Rabbit

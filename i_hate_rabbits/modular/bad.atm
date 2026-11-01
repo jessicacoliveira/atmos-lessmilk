@@ -1,0 +1,45 @@
+val pico = require "pico"
+
+val bad = pico.layer.images [ mode='!', key=:bad, path="media/bad.png", sheet=[ '#', w=2, h=1 ] ]
+task Bad (menu){
+    val a0, radius, h_bad = (math.rad(0 - 90), CIRCLE_RADIUS, BAD.h)
+    val bad_rect = [ '%', x = x, y = y, w = BAD.w, h = h_bad ] where {
+        r = radius + h_bad
+        x = 0.5 + (r * math.cos(a0))
+        y = 0.5 + (r * math.sin(a0))
+    }
+    var bad_frame, angle, r = (1, 0, radius + bad_rect.h)
+
+    set pub = [
+        rect = bad_rect,
+        angle = angle
+    ]
+
+    par{
+        loop on (BAD.anim){
+            set bad_frame = (bad_frame % 2) + 1
+        }
+    } with {
+        ;; Angular motion.
+        if menu != true{
+            loop us on :clock{
+                val dt = us / 1s
+                set angle = angle + (BAD.speed * dt)  ;; 72 deg/sec
+                set pub.angle = angle
+
+                val a = math.rad(angle - 90)
+                set bad_rect.x = 0.5 + (r * math.cos(a))
+                set bad_rect.y = 0.5 + (r * math.sin(a))
+            }
+        }
+    } with {
+        loop on :draw{
+            pico.set.layer(bad@bad_frame)
+            pico.set.effect [ rotate = [ angle = angle, anchor = 'C' ] ]
+            pico.set.layer(:world)
+            pico.output.draw.layer(bad@bad_frame, bad_rect)
+        }
+    }
+}
+
+Bad

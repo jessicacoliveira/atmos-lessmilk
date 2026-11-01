@@ -21,7 +21,7 @@ task Enemy (x0, y0, xf, yf, kind){
     watching until (out_of_screen()) {
         par {
             loop us on :clock {
-                val dt = us / 1000000.0
+                val dt = us / 1s
                 set enemy_rect.x = enemy_rect.x + (vx * dt)
                 set enemy_rect.y = enemy_rect.y + (vy * dt)
             }

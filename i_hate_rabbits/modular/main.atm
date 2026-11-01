@@ -1,0 +1,30 @@
+require "atmos.env.pico"
+val pico = require 'pico'
+
+val WIN_W, WIN_H = (450, 450)
+
+pico.set.window [ title = "I hate Rabbits (Atmos)" ]
+pico.set.dim [ '!', w = WIN_W, h = WIN_H ]
+
+pico.set.effect [ color = [ r=46, g=204, b=113 ] ]
+pico.set.pencil [ color = :white, font = "media/Arial.ttf" ]
+
+pico.layer.text [ key=:press_space, dim=[ '!', h=20 ], text="press space to" ]
+pico.layer.text [ key=:save_hint, dim=[ '!', h=20 ], text="try to save the rabbits by pressing space" ]
+pico.layer.image [ mode='!', key=:circle, path="media/circle.png" ]
+
+set best_score = 0
+
+require "consts"
+val Menu = require "menu"
+val Play = require "play"
+val End  = require "end"
+
+await Menu()
+loop{
+    pico.push()
+    val score = await Play()
+    set best_score = if score > best_score => score => best_score
+    await End(score)
+    pico.pop()
+}

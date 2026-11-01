@@ -1,0 +1,32 @@
+val pico = require "pico"
+val map = require "map"
+
+task Coin (x0, y0){
+    val rect = [ '%', x = x0, y = y0, w = COIN.w, h = COIN.h, anchor = 'NW' ]
+    var vy = 0
+
+    set pub = [
+        rect = rect
+    ]
+
+    par:any {
+        loop us on :clock {
+            val dt = us / 1s
+            set vy = vy + ((COIN.gravity/WIN_H) * dt)
+            val new_y = rect.y + (vy * dt)
+            if hit(map, rect.x, new_y, rect.w, rect.h, BRICK)
+                => set vy = -(vy * COIN.bounce)
+                => set rect.y = new_y
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(:actors)
+            pico.output.draw.image("media/coin.png", rect)
+            pico.set.layer(:world)
+        }
+    } with {
+        await :hit
+    }
+}
+
+Coin

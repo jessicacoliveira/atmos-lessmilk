@@ -9,6 +9,16 @@ pico.set.dim [ '!', w = WIN_W, h = WIN_H ]
 pico.set.effect [ color = [r = 27, g = 183, b = 255] ]
 pico.set.pencil [ color = :white, font = "media/Arial.ttf" ]
 
+val MAN = [ w = 0.055, h = 0.09, speed = 160, jump = -430, gravity = 900, jump_buffer = 120ms, jump_cut = 0.4, anim = 120ms, fall = 400, spin = 500 ]
+val PENGUIN = [ w = 0.035, h = 0.075, speed = 90, gravity = 900, anim = 150ms, squash = 150, max = 40 ]
+val COIN = [ w = 0.035, h = 0.065, gravity = 700, bounce = 0.5 ]
+val SPAWN = [ base = 2000, rand = 500, per_point = 20, max_cut = 1000 ]
+val SHAKE = [ kill = 4, kill_time = 50, dead = 10, dead_time = 100 ]
+val MENU = [ angle = 3, time = 1000 ]
+val BEST_POP = [ scale = 2, time = 300 ]
+val STOMP_MARGIN = 20
+val HINT_FADE = 1000
+
 val map = [
             [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -28,25 +38,24 @@ val map = [
             [ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
             [ 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1],
             [ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-          ] 
+          ]
 
 val COLS, ROWS, TILE = ( #(map@1), #map, [ w = 20, h = 20 ] )
 val EMPTY, BRICK = (0, 1)
 
-pico.layer.empty("world", :actors, true,  [ '!', w = WIN_W, h = WIN_H ])
-pico.layer.empty("world", :map, false, [ '!', w = COLS, h = ROWS ], TILE)
-pico.layer.empty("world", :menu, true,  [ '!', w = WIN_W, h = WIN_H ])
+pico.layer.empty [ up="world", key=:actors, clear=true, dim=[ '!', w = WIN_W, h = WIN_H ] ]
+pico.layer.empty [ up="world", key=:map, clear=false, dim=[ '#', w = COLS, h = ROWS ], tile=[ '!', w=TILE.w, h=TILE.h ] ]
+pico.layer.empty [ up="world", key=:menu, clear=true, dim=[ '!', w = WIN_W, h = WIN_H ] ]
 
 pico.set.layer(:actors)
 pico.set.effect [ color = [ r=0, g=0, b=0, a=0 ] ]
 pico.set.layer(:menu)
-pico.set.effect [ color = [ r=27, g=183, b=255, a=255 ] ] 
+pico.set.effect [ color = [ r=27, g=183, b=255, a=255 ] ]
 pico.set.layer(:world)
 
 pico.set.layer(:map)
 pico.set.effect [ color = [ r=0, g=0, b=0, a=0 ] ]
 pico.output.clear()
-pico.set.pencil [ color = "white" ]
 loop i in #map {
     loop j in #(map@i) {
         if map@i@j == BRICK {
@@ -93,20 +102,20 @@ func grounded (rect){
 }
 
 task Shake (rect, i, t){
-	await Motion.lerp(rect, [ x = i,  y = i  ], t)
-	await Motion.lerp(rect, [ x = -i, y = -i ], t)
-	await Motion.lerp(rect, [ x = 0,  y = 0  ], t)
-	set rect.x, rect.y = (0, 0)
+    await Motion.linear(rect, [ x = i,  y = i  ], t)
+    await Motion.linear(rect, [ x = -i, y = -i ], t)
+    await Motion.linear(rect, [ x = 0,  y = 0  ], t)
+    set rect.x, rect.y = (0, 0)
 }
 
-pico.layer.text(nil, :press_up,  25, "press the UP arrow key to start")
+pico.layer.text [ key=:press_up, dim=[ '!', h=25 ], text="press the UP arrow key to start" ]
 task Menu (){
     val rot = [ angle = 0 ]
 
     par:any {
         loop {
-            await Motion.lerp(rot, [ angle = 3 ], 1000)
-            await Motion.lerp(rot, [ angle = -3 ], 1000)
+            await Motion.linear(rot, [ angle = MENU.angle ], MENU.time)
+            await Motion.linear(rot, [ angle = -MENU.angle ], MENU.time)
         }
     } with {
         loop on :draw {
@@ -120,51 +129,51 @@ task Menu (){
     } with {
         await (:key.dn [key=:Up])
         pico.set.layer(:menu)
-        pico.set.effect [ color = [ r=27, g=183, b=255, a=0 ] ] 
+        pico.set.effect [ color = [ r=27, g=183, b=255, a=0 ] ]
         pico.set.layer(:world)
     }
 }
 
-val pen = pico.layer.images('!', nil, :penguin, "media/enemy.png", [ '#', w = 2, h = 1 ])
+val pen = pico.layer.images [ mode='!', key=:penguin, path="media/enemy.png", sheet=[ '#', w = 2, h = 1 ] ]
 task Penguin (dir0){
-    val rect = [ '%', x = 0.5, y = 0, w = 0.035, h = 0.075, anchor = 'NW' ]
+    val rect = [ '%', x = 0.5, y = 0, w = PENGUIN.w, h = PENGUIN.h, anchor = 'NW' ]
     set pub = [
         rect = rect
     ]
 
-    val vx, gravity = (90/WIN_W, 900/WIN_H)
+    val vx, gravity = (PENGUIN.speed/WIN_W, PENGUIN.gravity/WIN_H)
     var vy, dir = (0 , dir0)
     var frame = 1
-    var flip_var = if dir > 0 => "horizontal" => "none"
 
     par:any {
         loop us on :clock {
-            val dt = us/1000000
+            val dt = us / 1s
 
             set vy = vy + (gravity * dt)
             val new_y = rect.y + (vy * dt)
             if hit(map, rect.x, new_y, rect.w, rect.h, BRICK) => set vy = 0 => set rect.y = new_y
         }
-    } with {	
+    } with {
         await until (grounded(rect))
         loop us on :clock {
-            val dt = us/1000000
+            val dt = us / 1s
 
             val new_x = rect.x + ((vx * dir) * dt)
             if hit(map, new_x, rect.y, rect.w, rect.h, BRICK) || (new_x <= 0) || (new_x >= (1 - rect.w)) {
                 set dir = dir * (-1)
-                set flip_var = if dir > 0 => "horizontal" => "none"
             } else {
                 set rect.x = new_x
             }
         }
     } with {
-        loop on 150ms {
+        await until (grounded(rect))
+        loop on (PENGUIN.anim) {
             set frame = (frame % 2) + 1
         }
     } with {
         loop on :draw {
             pico.set.layer(pen@frame)
+            val flip_var = if dir > 0 => "horizontal" => "none"
             pico.set.effect [ flip = flip_var ]
             pico.set.layer(:actors)
             pico.output.draw.layer(pen@frame, rect)
@@ -174,12 +183,12 @@ task Penguin (dir0){
         await until (rect.y > 1)
     } with {
         await :hit
-        await Motion.lerp(rect, [ y = rect.y + rect.h, h = 0.005 ], 150)
+        await Motion.linear(rect, [ y = rect.y + rect.h, h = 0.005 ], PENGUIN.squash)
     }
 }
 
 task Coin (x0, y0){
-    val rect = [ '%', x = x0, y = y0, w = 0.035, h = 0.065, anchor = 'NW' ]
+    val rect = [ '%', x = x0, y = y0, w = COIN.w, h = COIN.h, anchor = 'NW' ]
     var vy = 0
 
     set pub = [
@@ -188,11 +197,11 @@ task Coin (x0, y0){
 
     par:any {
         loop us on :clock {
-            val dt = us/1000000
-            set vy = vy + ((700/WIN_H) * dt)
+            val dt = us / 1s
+            set vy = vy + ((COIN.gravity/WIN_H) * dt)
             val new_y = rect.y + (vy * dt)
             if hit(map, rect.x, new_y, rect.w, rect.h, BRICK)
-                => set vy = 0
+                => set vy = -(vy * COIN.bounce)
                 => set rect.y = new_y
         }
     } with {
@@ -206,26 +215,37 @@ task Coin (x0, y0){
     }
 }
 
-val man = pico.layer.images('!', nil, :man, "media/player.png", [ '#', w = 3, h = 1 ])
+val man = pico.layer.images [ mode='!', key=:man, path="media/player.png", sheet=[ '#', w = 3, h = 1 ] ]
 task Man (){
-    val rect = [ '%', x = 0.5, y = 0.5, w = 0.055, h = 0.09, anchor = 'NW' ]
+    val rect = [ '%', x = 0.5, y = 0.5, w = MAN.w, h = MAN.h, anchor = 'NW' ]
 
     set pub = [
         rect = rect
     ]
 
-    val speed, jump_v, gravity = (160/WIN_W, -430/WIN_H, 900/WIN_H)
+    val speed, jump_v, gravity = (MAN.speed/WIN_W, MAN.jump/WIN_H, MAN.gravity/WIN_H)
+    val rot = [ angle = 0 ]
     var vx, vy = (0, 0)
-    var dir, frame, flip_var = (1, 1, "none")
-    var rot = [ angle = 0 ]
+    var dir, frame = (1, 1)
 
     par:any {
         loop{
             val evt = await :key.dn until ((it.key == :Left) || (it.key == :Right))
-            set vx, frame = (speed, 2)
+            set vx = speed
             set dir = if evt.key == :Left => -1 => 1
             await :key.up until (it.key == evt.key)
             set vx = 0
+        }
+    } with {
+        loop{
+            val evt = await :key.dn until ((it.key == :Left) || (it.key == :Right))
+            watching :key.up [key=evt.key]{
+                loop{
+                    set frame = ((frame - 1) % 2) + 2
+                    await (MAN.anim)
+                }
+            }
+            set frame = 1
         }
     } with {
         ;; jump
@@ -235,12 +255,12 @@ task Man (){
                 pico.output.sound("media/jump.wav")
                 set vy = jump_v
             } with {
-                await 120ms
+                await (MAN.jump_buffer)
             }
         }
     } with {
         loop on :key.up [key=:Up]{
-            if vy < 0 => set vy = vy * 0.4
+            if vy < 0 => set vy = vy * MAN.jump_cut
         }
     } with {
         loop on :bounce {
@@ -249,7 +269,7 @@ task Man (){
     } with {
         ;; tile collision
         loop us on :clock {
-            val dt = us/1000000
+            val dt = us / 1s
 
             ;; horizontal
             val new_x = between(0, rect.x + ((vx * dir) * dt), 1 - rect.w)
@@ -261,18 +281,9 @@ task Man (){
             if hit(map, rect.x, new_y, rect.w, rect.h, BRICK) => set vy = 0 => set rect.y = new_y
         }
     } with {
-        ;; walk animation
-        loop on 120ms {
-            if vx != 0 => set frame = ((frame - 1) % 2) + 2
-        }
-    } with {
-        loop on :clock{
-            set flip_var = if dir < 0 => "horizontal" => "none"
-            if vx == 0 => set frame = 1
-        }
-    } with {
         loop on :draw {
             pico.set.layer(man@frame)
+            val flip_var = if dir < 0 => "horizontal" => "none"
             pico.set.effect [ flip = flip_var, rotate = [angle = rot.angle, anchor='C' ] ]
             pico.set.layer(:actors)
             pico.output.draw.layer(man@frame, rect)
@@ -282,24 +293,24 @@ task Man (){
         await until (rect.y > 1)
     } with {
         await :hit
-		par:all{
-	        await Motion.lerp(rect, [ y = 1 ], 400)
-	    } with {
-	        await Motion.lerp(rot, [ angle = 360 ], 500)
-	    }
-	}
+        par:all{
+            await Motion.linear(rect, [ y = 1 ], MAN.fall)
+        } with {
+            await Motion.linear(rot, [ angle = 360 ], MAN.spin)
+        }
+    }
 }
 
 
-pico.layer.text(nil, :hint_1,    18, "1- arrow keys to move")
-pico.layer.text(nil, :hint_2,    18, "2- take coins for score")
-pico.layer.text(nil, :hint_3,    18, "3- jump on penguins to kill")
+pico.layer.text [ key=:hint_1, dim=[ '!', h=18 ], text="1- arrow keys to move" ]
+pico.layer.text [ key=:hint_2, dim=[ '!', h=18 ], text="2- take coins for score" ]
+pico.layer.text [ key=:hint_3, dim=[ '!', h=18 ], text="3- jump on penguins to kill" ]
 task Game (){
     pin coins = tasks (1)
     val scene = [ '!', x = 0, y = 0, w = WIN_W, h = WIN_H, anchor = 'NW' ]
     var score, best_score = (0, 0)
     pin effects = tasks()
-    ;;pico.output.sound("media/music.wav")
+    pico.output.sound("media/music.wav")
 
     spawn{
         val fade_out = [ alpha = 255 ]
@@ -310,7 +321,7 @@ task Game (){
             } with {
                 await :bounce               ;; 3- jump on penguins to kill"
             }
-            await Motion.lerp(fade_out, [ alpha = 0 ], 1000)
+            await Motion.linear(fade_out, [ alpha = 0 ], HINT_FADE)
         } with {
             val txt_h1 = [ '%', x = 0.5, y = 0.35]
             val txt_h2 = [ '%', x = 0.5, y = 0.41 ]
@@ -331,35 +342,34 @@ task Game (){
     }
 
     loop{
-        pin enemies = tasks(40)
+        pin enemies = tasks(PENGUIN.max)
         pin player = spawn Man ()
         set score = 0
         val txt_best = [ '%', x = 0.15, y = 0.16, h = 0.05 ]
-        
+
         par:any{
             var side = 1
-            var timer = 0
             loop {
-                await (timer * 1ms)
-                set timer = 2000 + (math.random(500) - math.min((score*20), 1000))
                 spawn @enemies Penguin (side)
                 set side = side * (-1)
+                await ((SPAWN.base + (math.random(SPAWN.rand) - math.min((score*SPAWN.per_point), SPAWN.max_cut))) * 1ms)
             }
         } with {
             val txt_score = [ '%', x = 0.15, y = 0.1, h = 0.05 ]
             loop on :draw {
                 pico.set.layer(:actors)
-                pico.output.draw.text("score: " ++ score, txt_score)
-                pico.output.draw.text("best: " ++ best_score, txt_best)
+                pico.output.draw.text.dyn("/txt_score", "score: " ++ score, txt_score)
+                pico.output.draw.text.dyn("/txt_best", "best: " ++ best_score, txt_best)
                 pico.set.layer(:world)
             }
         } with {
-            val respawn_coin = [
-                [ [0.32, 0.5], [0.64, 0.5], [0.08, 0.7], [0.88, 0.7] ],
-                [ [0.12, 0.28], [0.84, 0.28] ],
-                [ [0.32, 0.14], [0.64, 0.14], [0.36, 0.83], [0.60, 0.83] ]
-            ]
-            var last = 0
+            val spots_1 = [ [0.32, 0.5], [0.64, 0.5], [0.08, 0.7], [0.88, 0.7] ]
+            val spots_2 = spots_1 ++ [ [0.12, 0.28], [0.84, 0.28] ]
+            val spots_3 = spots_2 ++ [ [0.32, 0.14], [0.64, 0.14], [0.36, 0.83], [0.60, 0.83] ]
+            val respawn_coin = [ spots_1, spots_2, spots_3 ]
+            var last = 1
+
+            spawn @coins Coin (spots_1@1@1, spots_1@1@2)
             loop{
                 await until (#coins == 0)
                 val i = ifs{
@@ -367,12 +377,10 @@ task Game (){
                     score <= 10 => 2
                     else        => 3
                 }
-                var current_pick = math.random(#(respawn_coin@i))
-                loop t in 5{
-                    if current_pick != last => break() => set current_pick = math.random(#(respawn_coin@i))
-                }
-                set last = current_pick
-                val p = respawn_coin@i@current_pick
+                var pick = math.random(#(respawn_coin@i))
+                if pick == last => set pick = (pick % (#(respawn_coin@i))) + 1
+                set last = pick
+                val p = respawn_coin@i@pick
                 spawn @coins Coin (p@1, p@2)
             }
         } with {
@@ -386,17 +394,20 @@ task Game (){
                         pico.output.sound("media/coin.wav")
                     }
                 }
+            }
+        } with {
+            loop on :clock {
+                val p = player.pub.rect
 
                 loop _, pg in enemies {
                     if pico.vs.rect.rect(p, pg.pub.rect) {
                         val p_bottom = p.y + p.h
                         val pg_top = pg.pub.rect.y
-                        if p_bottom < (pg_top + (20/WIN_H)) {
+                        if p_bottom < (pg_top + (STOMP_MARGIN/WIN_H)) {
                             emit @pg :hit
-                            ;;emit @player :bounce
                             emit :bounce
                             pico.output.sound("media/kill.wav")
-                            spawn @effects Shake(scene, 4, 50)
+                            spawn @effects Shake(scene, SHAKE.kill, SHAKE.kill_time)
                         } else {
                             emit @enemies :hit
                             emit @player :hit
@@ -416,11 +427,13 @@ task Game (){
             await (player)
             pico.output.sound("media/dead.wav")
             par:all{
-                await Shake(scene, 10, 100)
+                await Shake(scene, SHAKE.dead, SHAKE.dead_time)
             } with {
                 if score > best_score{
                     set best_score = score
-                    await Motion.lerp(txt_best, [ h = 0.075 ], 300)
+                    val temp = txt_best.h
+                    set txt_best.h = (BEST_POP.scale * txt_best.h)
+                    await Motion.linear(txt_best, [ h = temp ], BEST_POP.time)
                 }
             }
         }
@@ -428,6 +441,4 @@ task Game (){
 }
 
 await Menu()
-loop {
-    await Game()
-}
+await Game()

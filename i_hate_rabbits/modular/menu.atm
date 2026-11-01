@@ -1,0 +1,38 @@
+val pico = require "pico"
+val Motion = require "motion"
+val Bad = require "bad"
+
+pico.layer.text [ key=:start_game, dim=[ '!', h=25 ], text="start the game" ]
+pico.layer.text [ key=:title, dim=[ '!', h=30 ], text="I Hate Rabbits!" ]
+task Menu (){
+    val start_rect1 = [ '%', x = 0.5, y = 0.475, h = PULSE.h0 ]
+    val start_rect2 = [ '%', x = 0.5, y = 0.525, h = PULSE.h0 ]
+
+    par:any{
+        loop{
+            await Motion.linear(start_rect1, [ h = PULSE.big ], PULSE.time)
+            await Motion.linear(start_rect1, [ h = PULSE.small ], PULSE.time)
+        }
+    } with {
+        loop{
+            await Motion.linear(start_rect2, [ h = PULSE.big ], PULSE.time)
+            await Motion.linear(start_rect2, [ h = PULSE.small ], PULSE.time)
+        }
+    } with {
+        val title_rect = [ '%', x = 0.5, y = 0.06 ]
+        val instructions_rect = [ '%', x = 0.5, y = 0.9 ]
+        spawn Bad (true)  ;; static bad guy
+
+        loop on :draw{
+            pico.output.draw.layer(:circle, [ '%', x = 0.5, y = 0.5 ])
+            pico.output.draw.layer(:title, title_rect)
+            pico.output.draw.layer(:press_space, start_rect1)
+            pico.output.draw.layer(:start_game, start_rect2)
+            pico.output.draw.layer(:save_hint, instructions_rect)
+        }
+    } with {
+        await <:key.dn [key=:Space] || :mouse.button.dn>
+    }
+}
+
+Menu

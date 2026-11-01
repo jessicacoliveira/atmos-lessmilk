@@ -1,0 +1,29 @@
+val map = require "map"
+
+func tile_at (map, world_x, world_y){
+    val col = math.floor(world_x * COLS)
+    val row = math.floor(world_y * ROWS)
+    ifs {
+        (col < 0) || (col >= COLS) => EMPTY
+        (row < 0) || (row >= ROWS) => EMPTY
+        else => map@(row + 1)@(col + 1)
+    }
+}
+
+func hit (map, x, y, w, h, kind){
+    val pick_xs = [ x, x + (w/2), (x + w) - (1/WIN_W) ]
+    val pick_ys = [ y, y + (h/2), (y + h) - (1/WIN_H) ]
+    loop _, px in pick_xs {
+        loop _, py in pick_ys {
+            if tile_at(map, px, py) == kind => return (true)
+        }
+    }
+    false
+}
+
+func grounded (rect){
+    val y = rect.y + rect.h
+    (tile_at(map, rect.x, y) == BRICK) ||
+    (tile_at(map, rect.x + (rect.w/2), y) == BRICK) ||
+    (tile_at(map, (rect.x + rect.w) - (1/WIN_W), y) == BRICK)
+}

@@ -1,0 +1,42 @@
+val pico = require "pico"
+val Motion = require "motion"
+
+task Letter (charac, pos_sentence, x0, num_sentence){
+    val key = "char_" ++ pos_sentence ++ "_" ++ num_sentence
+    val char_rect = [ '%', x = x0, y = LETTER.y, w = LETTER.spacing, h = LETTER.h ]
+    var fade = [ alpha = 0 ]
+
+    set pub = [
+        letter = charac,
+        rect = char_rect
+    ]
+    spawn{
+        val delay = (pos_sentence - 1) * LETTER.delay
+        await (delay * 1ms)
+        await Motion.linear (fade, [ alpha = 255 ], LETTER.fade)
+    }
+
+    pico.layer.text [ key=key, dim=[ '!', h=20 ], text=charac ]
+    par:any {
+        val evt = await :typed
+        val bomb_pos = evt@1
+        pico.output.sound("media/fire.wav")
+        val lenght = (char_rect.y - bomb_pos.y)*WIN_H
+
+        await Motion.linear(char_rect, [ x = bomb_pos.x, y = bomb_pos.y ], lenght*LETTER.flight)
+
+    } with {
+        loop on :draw {
+            pico.push()
+            pico.set.layer(key)
+            pico.set.effect [ alpha = math.floor(fade.alpha) ]
+            pico.set.layer(:world)
+            pico.output.draw.layer(key, char_rect)
+            pico.pop()
+        }
+    } with {
+        await :hit
+    }
+}
+
+Letter

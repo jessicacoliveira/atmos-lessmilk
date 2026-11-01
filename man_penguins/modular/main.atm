@@ -1,0 +1,41 @@
+require "atmos.env.pico"
+val pico = require 'pico'
+
+set WIN_W, WIN_H = (500, 360)
+pico.set.window [ title = "Man vs Penguins (Atmos)" ]
+pico.set.dim [ '!', w = WIN_W, h = WIN_H ]
+
+pico.set.effect [ color = [r = 27, g = 183, b = 255] ]
+pico.set.pencil [ color = :white, font = "media/Arial.ttf" ]
+
+require "consts"
+val map = require "map"
+
+pico.layer.empty [ up="world", key=:actors, clear=true, dim=[ '!', w = WIN_W, h = WIN_H ] ]
+pico.layer.empty [ up="world", key=:map, clear=false, dim=[ '#', w = COLS, h = ROWS ], tile=[ '!', w=TILE.w, h=TILE.h ] ]
+pico.layer.empty [ up="world", key=:menu, clear=true, dim=[ '!', w = WIN_W, h = WIN_H ] ]
+
+pico.set.layer(:actors)
+pico.set.effect [ color = [ r=0, g=0, b=0, a=0 ] ]
+pico.set.layer(:menu)
+pico.set.effect [ color = [ r=27, g=183, b=255, a=255 ] ]
+pico.set.layer(:world)
+
+pico.set.layer(:map)
+pico.set.effect [ color = [ r=0, g=0, b=0, a=0 ] ]
+pico.output.clear()
+loop i in #map {
+    loop j in #(map@i) {
+        if map@i@j == BRICK {
+            pico.output.draw.image ("media/brick.png", [ '#', x=j, y=i, w=1, h=1 ] )
+        }
+    }
+}
+pico.set.layer(:world)
+
+require "collision"
+val Menu = require "menu"
+val Game = require "game"
+
+await Menu()
+await Game()

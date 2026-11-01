@@ -1,0 +1,30 @@
+val pico = require "pico"
+val Motion = require "motion"
+
+pico.layer.text [ key=:press_up, dim=[ '!', h=25 ], text="press the UP arrow key to start" ]
+task Menu (){
+    val rot = [ angle = 0 ]
+
+    par:any {
+        loop {
+            await Motion.linear(rot, [ angle = MENU.angle ], MENU.time)
+            await Motion.linear(rot, [ angle = -MENU.angle ], MENU.time)
+        }
+    } with {
+        loop on :draw {
+            pico.set.layer(:press_up)
+            pico.set.effect [ rotate = [ angle = rot.angle, anchor = 'C' ] ]
+            pico.set.layer(:menu)
+            pico.output.draw.image("media/bg.png", [ '%', x = 0.5, y = 0.5 ])
+            pico.output.draw.layer(:press_up, [ '%', x = 0.5, y = 0.9 ])
+            pico.set.layer(:world)
+        }
+    } with {
+        await (:key.dn [key=:Up])
+        pico.set.layer(:menu)
+        pico.set.effect [ color = [ r=27, g=183, b=255, a=0 ] ]
+        pico.set.layer(:world)
+    }
+}
+
+Menu
